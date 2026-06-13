@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { EMPLOYEES } from "@/lib/employees";
 import {
+  getReplyChatter,
   getRoleChatter,
   IDLE_CHATTER_GAP_MS,
   IDLE_CHATTER_SHOW_MS,
@@ -10,7 +11,8 @@ import {
 import { useOfficeStore } from "@/lib/store";
 
 /**
- * 全局待机播报：同一时间只有一位 idle 员工说话，显示 3 秒后间隔 5 秒再换下一位。
+ * 全局待机播报：最多两人同时说话。
+ * 第一人岗位台词 → 第二人接话「是啊，…」→ 显示 3 秒 → 间隔 5 秒。
  */
 export default function IdleChatterController() {
   const missionStatus = useOfficeStore((s) => s.mission?.status);
@@ -27,8 +29,9 @@ export default function IdleChatterController() {
     }
 
     let cancelled = false;
-    let speakerIdx = 0;
+    let turnIdx = 0;
     const lineCounter: Record<string, number> = {};
+    const replyCounter: Record<string, number> = {};
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     const sleep = (ms: number) =>
@@ -49,14 +52,30 @@ export default function IdleChatterController() {
           continue;
         }
 
-        const speakerId = idleIds[speakerIdx % idleIds.length]!;
-        speakerIdx += 1;
-        const lineIdx = lineCounter[speakerId] ?? 0;
-        lineCounter[speakerId] = lineIdx + 1;
+        const leadId = idleIds[turnIdx % idleIds.length]!;
+        turnIdx += 1;
+        const leadLineIdx = lineCounter[leadId] ?? 0;
+        lineCounter[leadId] = leadLineIdx + 1;
+        const leadText = getRoleChatter(leadId, leadLineIdx);
+
+        const others = idleIds.filter((id) => id !== leadId);
+        let reply: { speakerId: string; text: string } | undefined;
+
+        // 有第二位 idle 同事时，约 80% 概率接话
+        if (others.length > 0 && turnIdx % 5 !== 0) {
+          const replyId = others[(turnIdx + 2) % others.length]!;
+          const pairKey = `${leadId}->${replyId}`;
+          const replyIdx = replyCounter[pairKey] ?? 0;
+          replyCounter[pairKey] = replyIdx + 1;
+          reply = {
+            speakerId: replyId,
+            text: getReplyChatter(leadId, replyId, replyIdx),
+          };
+        }
 
         setIdleChatter({
-          speakerId,
-          text: getRoleChatter(speakerId, lineIdx),
+          lead: { speakerId: leadId, text: leadText },
+          reply,
         });
 
         await sleep(IDLE_CHATTER_SHOW_MS);

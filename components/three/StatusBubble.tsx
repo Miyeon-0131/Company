@@ -54,10 +54,15 @@ export default function StatusBubble({
 }: StatusBubbleProps) {
   const style = BUBBLE_STYLE[status];
   const idleChatter = useOfficeStore((s) => s.idleChatter);
-  const isSpeaking =
+  const isLead =
     status === "idle" &&
     !overrideText &&
-    idleChatter?.speakerId === employeeId;
+    idleChatter?.lead.speakerId === employeeId;
+  const isReply =
+    status === "idle" &&
+    !overrideText &&
+    idleChatter?.reply?.speakerId === employeeId;
+  const isSpeaking = isLead || isReply;
 
   if (hideLabels) return null;
 
@@ -65,11 +70,13 @@ export default function StatusBubble({
     overrideText ??
     (status === "working"
       ? workingLabel
-      : isSpeaking
-        ? idleChatter!.text
-        : status === "idle"
-          ? null
-          : style.text);
+      : isLead
+        ? idleChatter!.lead.text
+        : isReply
+          ? idleChatter!.reply!.text
+          : status === "idle"
+            ? null
+            : style.text);
 
   return (
     <Html
@@ -85,7 +92,11 @@ export default function StatusBubble({
             <div
               className={`border px-3.5 py-2 text-xs font-medium backdrop-blur-sm transition-all duration-300 ${
                 isSpeaking
-                  ? "w-[min(300px,72vw)] max-w-[300px] whitespace-normal text-left leading-relaxed rounded-2xl rounded-bl-sm bg-slate-800/95 text-slate-200 border-slate-500/55 shadow-lg"
+                  ? `w-[min(300px,72vw)] max-w-[300px] whitespace-normal text-left leading-relaxed rounded-2xl shadow-lg ${
+                      isReply
+                        ? "rounded-br-sm bg-violet-950/90 text-violet-100 border-violet-400/45"
+                        : "rounded-bl-sm bg-slate-800/95 text-slate-200 border-slate-500/55"
+                    }`
                   : `whitespace-nowrap rounded-full ${style.className} ${
                       status === "done" ? "animate-bounce" : ""
                     }`
@@ -102,7 +113,11 @@ export default function StatusBubble({
             </div>
             {isSpeaking && (
               <div
-                className="absolute -bottom-1.5 left-4 h-2.5 w-2.5 rotate-45 border-b border-l border-slate-500/55 bg-slate-800/95"
+                className={`absolute -bottom-1.5 h-2.5 w-2.5 rotate-45 border-b border-l ${
+                  isReply
+                    ? "right-4 border-violet-400/45 bg-violet-950/90"
+                    : "left-4 border-slate-500/55 bg-slate-800/95"
+                }`}
                 aria-hidden
               />
             )}

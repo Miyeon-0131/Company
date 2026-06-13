@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { IdleChatterTurn } from "./idleChatter";
 import { AgentStatus, Artifact, LogEntry, Mission, ScreenEntry, SubTask } from "./types";
 import { EMPLOYEES } from "./employees";
 
@@ -28,8 +29,8 @@ interface OfficeState {
   settingsOpen: boolean;
   /** 本次任务交付文件的浏览器缓存（url → 含 base64 的 Artifact） */
   artifactCache: Record<string, Artifact>;
-  /** 全局待机播报：当前正在说话的员工（同时仅一人） */
-  idleChatter: { speakerId: string; text: string } | null;
+  /** 全局待机播报：最多两人同时说话（主发言 + 可选接话） */
+  idleChatter: IdleChatterTurn | null;
 
   setStatus: (employeeId: string, status: AgentStatus, text?: string) => void;
   /** Step 4 核心 API：给某员工分配任务（状态置为 working 并更新气泡文案） */
@@ -50,7 +51,7 @@ interface OfficeState {
   setActiveScreen: (employeeId: string | null) => void;
   setShowResult: (show: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
-  setIdleChatter: (payload: { speakerId: string; text: string } | null) => void;
+  setIdleChatter: (payload: IdleChatterTurn | null) => void;
   cacheArtifacts: (artifacts: Artifact[] | undefined) => void;
   resetAll: () => void;
 }

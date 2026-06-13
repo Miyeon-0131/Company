@@ -85,10 +85,97 @@ const ROLE_CHATTER: Record<string, string[]> = {
 
 const FALLBACK = ["☕ 待机中，等待新任务…"];
 
+/** 接话模板：听到某岗位同事发言后的附和/补充（第二人专用） */
+const REPLY_TO_PRIMARY: Record<string, string[]> = {
+  "global-searcher": [
+    "是啊，外网检索记得交叉验证才靠谱",
+    "没错，Google Scholar 确实适合找论文",
+    "对啊，英文关键词得先想好同义词",
+    "是啊，实时资讯我会帮你跟进的",
+  ],
+  "local-searcher": [
+    "是啊，中文语境下用词差别挺大的",
+    "没错，公众号往往比网页更新快",
+    "对啊，国内政策得加地域限定词",
+    "是啊，我这边也能补一份中文摘要",
+  ],
+  "code-scout": [
+    "是啊，star 数高不代表能直接上生产",
+    "没错，开源协议交付前必须标清楚",
+    "对啊，commit 频率更能看项目活不活跃",
+    "是啊，README 写得好省我们很多功夫",
+  ],
+  "data-analyst": [
+    "是啊，字段名统一了我才好写报告",
+    "没错，同比环比两列老板最爱看",
+    "对啊，异常值标注留痕很重要",
+    "是啊，表格结构化后我 PPT 也好做",
+  ],
+  "script-runner": [
+    "是啊，词频统计结果我正好能引用",
+    "没错，JSON 输出下游接起来很方便",
+    "对啊，清洗规则统一了数据才准",
+    "是啊，增量跑批确实省不少时间",
+  ],
+  copywriter: [
+    "是啊，摘要写清楚了我邮件好发",
+    "没错，脚注溯源老板抽查也不怕",
+    "对啊，目录页加上翻阅体验好很多",
+    "是啊，正文和图表分开逻辑更顺",
+  ],
+  "presentation-designer": [
+    "是啊，一页一观点观众才不会晕",
+    "没错，结论页留白多点更有力",
+    "对啊，来源页可点击真的很加分",
+    "是啊，15 页以内节奏刚刚好",
+  ],
+  "image-generator": [
+    "是啊，封面无字确实能避免乱码",
+    "没错，深蓝紫渐变商务感拉满了",
+    "对啊，扁平矢量放报告里很体面",
+    "是啊，抽象图形比人物图安全多了",
+  ],
+  "format-converter": [
+    "是啊，PDF 内嵌字体不然中文会空白",
+    "没错，可点击链接交付体验好太多",
+    "对啊，页边距留够打印才不难看",
+    "是啊，打包 zip 发邮件最省事",
+  ],
+  "email-sender": [
+    "是啊，主题格式统一老板一眼能认",
+    "没错，附件太大确实该走网盘",
+    "对啊，发前核对收件人太重要了",
+    "是啊，HTML 排版好手机也能看",
+  ],
+};
+
+const GENERIC_REPLIES = [
+  "是啊，这条经验挺实用的",
+  "没错，咱们配合起来效率更高",
+  "对啊，等老板派活就能串起来",
+  "是啊，上下游衔接好交付才顺",
+];
+
+export interface IdleChatterTurn {
+  lead: { speakerId: string; text: string };
+  reply?: { speakerId: string; text: string };
+}
+
 /** 取某岗位的第 n 条职务相关台词 */
 export function getRoleChatter(employeeId: string, index: number): string {
   const lines = ROLE_CHATTER[employeeId] ?? FALLBACK;
   return lines[index % lines.length]!;
+}
+
+/** 第二人接话：针对主发言人的岗位生成附和句 */
+export function getReplyChatter(
+  primaryId: string,
+  responderId: string,
+  index: number
+): string {
+  void responderId; // 预留按接话人微调语气
+  const pool = REPLY_TO_PRIMARY[primaryId] ?? GENERIC_REPLIES;
+  return pool[index % pool.length]!;
 }
 
 export const IDLE_CHATTER_SHOW_MS = 3000;
