@@ -8,10 +8,29 @@ interface MailStatus {
   email: string | null;
 }
 
+interface EnvStatus {
+  claude: boolean;
+  tavily: boolean;
+  openai: boolean;
+  github: boolean;
+  googleOAuth: boolean;
+  smtp: boolean;
+}
+
+const ENV_LABELS: { key: keyof EnvStatus; label: string }[] = [
+  { key: "tavily", label: "Tavily 联网搜索" },
+  { key: "claude", label: "Claude 写报告" },
+  { key: "openai", label: "OpenAI 配图" },
+  { key: "github", label: "GitHub Token" },
+  { key: "googleOAuth", label: "Google 邮箱 OAuth" },
+  { key: "smtp", label: "SMTP 发信" },
+];
+
 /** 设置入口：主题切换 + 邮箱 Google 登录授权 */
 export default function SettingsPanel() {
   const [open, setOpen] = useState(false);
   const [mail, setMail] = useState<MailStatus>({ configured: false, email: null });
+  const [env, setEnv] = useState<EnvStatus | null>(null);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const hydrate = useThemeStore((s) => s.hydrate);
@@ -25,6 +44,10 @@ export default function SettingsPanel() {
       .then((r) => r.json())
       .then(setMail)
       .catch(() => {});
+    fetch("/api/env-check")
+      .then((r) => r.json())
+      .then(setEnv)
+      .catch(() => setEnv(null));
   }, []);
 
   useEffect(() => {
@@ -85,6 +108,30 @@ export default function SettingsPanel() {
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
                 切换办公室的整体光照氛围：深色为太空夜景，浅色为明亮白昼。
+              </p>
+
+              <p className="mb-2 mt-5 text-xs font-semibold text-slate-200">
+                服务端 API 状态（Vercel 环境变量）
+              </p>
+              <div className="space-y-1.5 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2.5">
+                {env ? (
+                  ENV_LABELS.map(({ key, label }) => (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between text-[11px]"
+                    >
+                      <span className="text-slate-400">{label}</span>
+                      <span className={env[key] ? "text-emerald-300" : "text-amber-300"}>
+                        {env[key] ? "✅ 已注入" : "⚠️ 未检测到"}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[11px] text-slate-500">检测中…</p>
+                )}
+              </div>
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                Shared 变量需关联到 Company 项目并重新部署后才生效。
               </p>
 
               {/* 邮箱授权 */}
