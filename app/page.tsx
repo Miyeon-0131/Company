@@ -8,6 +8,7 @@ import ResultModal from "@/components/ui/ResultModal";
 import SettingsPanel from "@/components/ui/SettingsPanel";
 import WorkScreenPanel from "@/components/ui/WorkScreenPanel";
 import IdleChatterController from "@/components/IdleChatterController";
+import IdleActivityController from "@/components/IdleActivityController";
 import OfficeModeController from "@/components/OfficeModeController";
 import FocusModePanel from "@/components/ui/FocusModePanel";
 
@@ -32,6 +33,7 @@ export default function Home() {
   return (
     <main className="relative h-screen w-screen overflow-hidden">
       <IdleChatterController />
+      <IdleActivityController />
       <OfficeModeController />
       <OfficeScene />
 

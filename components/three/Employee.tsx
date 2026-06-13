@@ -29,6 +29,7 @@ export default function Employee({ config }: EmployeeProps) {
   const pose = useOfficeStore((s) => s.employeePoses[config.id]);
   const hasTarget = useOfficeStore((s) => s.movementTargets[config.id]);
   const restActivity = useOfficeStore((s) => s.restActivities[config.id]);
+  const idleActivity = useOfficeStore((s) => s.idleActivities[config.id] ?? "sit");
   const setActiveScreen = useOfficeStore((s) => s.setActiveScreen);
 
   const department = getDepartment(config.departmentId);
@@ -107,8 +108,39 @@ export default function Employee({ config }: EmployeeProps) {
     } else {
       switch (status) {
         case "idle":
-          torsoScaleY = 1 + Math.sin(t * 1.6) * 0.018;
-          headTiltZ = Math.sin(t * 0.7) * 0.05;
+          switch (idleActivity) {
+            case "coffee":
+              headNodX = -0.05 + Math.sin(t * 2.5) * 0.06;
+              headTiltZ = Math.sin(t * 0.8) * 0.03;
+              rightArmRotX = -1.05 + Math.sin(t * 2.5) * 0.12;
+              rightArmRotY = 0.2;
+              leftArmRotX = -0.45;
+              break;
+            case "stretch":
+              leftArmRotX = 1.2 + Math.sin(t * 1.8) * 0.08;
+              rightArmRotX = 1.2 + Math.sin(t * 1.8 + 0.5) * 0.08;
+              leftArmRotZ = 0.25;
+              rightArmRotZ = -0.25;
+              headTiltZ = Math.sin(t * 1.2) * 0.08;
+              break;
+            case "phone":
+              headNodX = 0.18;
+              headTiltZ = Math.sin(t * 0.6) * 0.04;
+              leftArmRotX = -0.35;
+              rightArmRotX = -0.85;
+              rightArmRotY = 0.35;
+              break;
+            case "daze":
+              headTiltZ = Math.sin(t * 0.35) * 0.12;
+              torsoScaleY = 1 + Math.sin(t * 1.2) * 0.012;
+              leftArmRotX = -0.42;
+              rightArmRotX = -0.42;
+              break;
+            default:
+              torsoScaleY = 1 + Math.sin(t * 1.6) * 0.018;
+              headTiltZ = Math.sin(t * 0.7) * 0.05;
+              break;
+          }
           break;
 
         case "thinking":
@@ -281,6 +313,18 @@ export default function Employee({ config }: EmployeeProps) {
               <boxGeometry args={[0.09, 0.09, 0.08]} />
               <meshStandardMaterial color={config.skinColor} flatShading />
             </mesh>
+            {status === "idle" && idleActivity === "coffee" && (
+              <mesh position={[0, 0.04, -0.46]}>
+                <cylinderGeometry args={[0.04, 0.035, 0.09, 8]} />
+                <meshStandardMaterial color="#e8e6e3" flatShading />
+              </mesh>
+            )}
+            {status === "idle" && idleActivity === "phone" && (
+              <mesh position={[0, -0.02, -0.44]} rotation={[0.3, 0, 0]}>
+                <boxGeometry args={[0.06, 0.1, 0.02]} />
+                <meshStandardMaterial color="#1e2438" flatShading />
+              </mesh>
+            )}
           </group>
         </group>
 

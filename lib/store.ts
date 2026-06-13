@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { IDLE_ACTIVITY_LABELS } from "./idleActivity";
 import { IdleChatterTurn } from "./idleChatter";
 import {
   MEETING_ANCHORS,
@@ -11,6 +12,7 @@ import {
   Artifact,
   DurationParts,
   EmployeePose,
+  IdleActivity,
   LogEntry,
   Mission,
   MovementTarget,
@@ -60,6 +62,8 @@ interface OfficeState {
   settingsOpen: boolean;
   artifactCache: Record<string, Artifact>;
   idleChatter: IdleChatterTurn | null;
+  /** 工位摸鱼时的动作（喝咖啡、伸懒腰等） */
+  idleActivities: Record<string, IdleActivity>;
 
   setStatus: (employeeId: string, status: AgentStatus, text?: string) => void;
   assignTask: (employeeId: string, task: string) => void;
@@ -90,6 +94,7 @@ interface OfficeState {
   setShowResult: (show: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setIdleChatter: (payload: IdleChatterTurn | null) => void;
+  setIdleActivity: (employeeId: string, activity: IdleActivity) => void;
   cacheArtifacts: (artifacts: Artifact[] | undefined) => void;
   resetAll: () => void;
 }
@@ -112,11 +117,18 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   settingsOpen: false,
   artifactCache: {},
   idleChatter: null,
+  idleActivities: Object.fromEntries(
+    EMPLOYEES.map((e) => [e.id, "sit" as IdleActivity])
+  ),
 
   setStatus: (employeeId, status, text) =>
     set((state) => ({
       statuses: { ...state.statuses, [employeeId]: status },
       statusTexts: { ...state.statusTexts, [employeeId]: text ?? null },
+      idleActivities:
+        status !== "idle"
+          ? { ...state.idleActivities, [employeeId]: "sit" }
+          : state.idleActivities,
     })),
 
   assignTask: (employeeId, task) => {
@@ -409,6 +421,18 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
           : null,
     }),
 
+  setIdleActivity: (employeeId, activity) =>
+    set((state) => {
+      const label = IDLE_ACTIVITY_LABELS[activity];
+      const isIdle = (state.statuses[employeeId] ?? "idle") === "idle";
+      return {
+        idleActivities: { ...state.idleActivities, [employeeId]: activity },
+        statusTexts: isIdle
+          ? { ...state.statusTexts, [employeeId]: label }
+          : state.statusTexts,
+      };
+    }),
+
   cacheArtifacts: (artifacts) =>
     set((state) => {
       if (!artifacts?.length) return state;
@@ -428,5 +452,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       screens: {},
       artifactCache: {},
       idleChatter: null,
+      idleActivities: Object.fromEntries(
+        EMPLOYEES.map((e) => [e.id, "sit" as IdleActivity])
+      ),
     }),
 }));

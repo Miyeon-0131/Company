@@ -11,6 +11,9 @@ export type AgentStatus =
 /** 办公室模式：正常 / 会议室专注 / 休息区 */
 export type OfficeMode = "normal" | "focus" | "break";
 
+/** 工位摸鱼时的活动类型 */
+export type IdleActivity = "sit" | "coffee" | "stretch" | "phone" | "daze";
+
 /** 休息区活动类型 */
 export type RestActivity =
   | "sofa"
