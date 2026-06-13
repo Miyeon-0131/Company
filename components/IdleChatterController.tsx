@@ -21,12 +21,15 @@ import { useOfficeStore } from "@/lib/store";
 export default function IdleChatterController() {
   const missionStatus = useOfficeStore((s) => s.mission?.status);
   const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+  const officeMode = useOfficeStore((s) => s.officeMode);
   const setIdleChatter = useOfficeStore((s) => s.setIdleChatter);
   const loopGen = useRef(0);
 
   useEffect(() => {
     const busy =
-      settingsOpen || (missionStatus != null && missionStatus !== "done");
+      settingsOpen ||
+      officeMode !== "normal" ||
+      (missionStatus != null && missionStatus !== "done");
 
     if (busy) {
       setIdleChatter(null);
@@ -125,7 +128,7 @@ export default function IdleChatterController() {
       timers.forEach(clearTimeout);
       setIdleChatter(null);
     };
-  }, [missionStatus, settingsOpen, setIdleChatter]);
+  }, [missionStatus, settingsOpen, officeMode, setIdleChatter]);
 
   return null;
 }

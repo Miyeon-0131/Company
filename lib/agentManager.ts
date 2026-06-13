@@ -26,7 +26,20 @@ export async function runMission(prompt: string) {
 
   try {
     const s = store();
+    const wasOfficeMode = s.officeMode !== "normal";
+    const awayFromDesk = EMPLOYEES.some((e) => {
+      const pose = s.employeePoses[e.id];
+      if (!pose) return false;
+      return (
+        Math.hypot(pose.x - e.position[0], pose.z - e.position[2]) > 0.55
+      );
+    });
+
     s.resetAll();
+    if (wasOfficeMode || awayFromDesk) {
+      s.returnAllToDesks();
+      s.addLog("系统", "老板有令，全员回工位待命", "system");
+    }
     s.startMission(prompt);
     const missionId = store().mission!.id;
     s.addLog("CEO", prompt, "system");

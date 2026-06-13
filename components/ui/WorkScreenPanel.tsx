@@ -11,6 +11,9 @@ const STATUS_BADGE: Record<AgentStatus, { text: string; className: string }> = {
   thinking: { text: "思考中", className: "border-violet-400/50 text-violet-300" },
   working: { text: "工作中", className: "border-cyan-400/50 text-cyan-300" },
   done: { text: "已完成", className: "border-emerald-400/50 text-emerald-300" },
+  walking: { text: "赶路中", className: "border-slate-400/50 text-slate-300" },
+  focusing: { text: "专注中", className: "border-sky-400/50 text-sky-300" },
+  resting: { text: "休息中", className: "border-rose-400/50 text-rose-300" },
 };
 
 function EntryLine({

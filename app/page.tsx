@@ -8,6 +8,8 @@ import ResultModal from "@/components/ui/ResultModal";
 import SettingsPanel from "@/components/ui/SettingsPanel";
 import WorkScreenPanel from "@/components/ui/WorkScreenPanel";
 import IdleChatterController from "@/components/IdleChatterController";
+import OfficeModeController from "@/components/OfficeModeController";
+import FocusModePanel from "@/components/ui/FocusModePanel";
 
 // R3F 场景只能在客户端渲染
 const OfficeScene = dynamic(() => import("@/components/three/OfficeScene"), {
@@ -30,6 +32,7 @@ export default function Home() {
   return (
     <main className="relative h-screen w-screen overflow-hidden">
       <IdleChatterController />
+      <OfficeModeController />
       <OfficeScene />
 
       {/* ── 顶部：公司标题 ─────────────────────────── */}
@@ -85,7 +88,8 @@ export default function Home() {
         <SettingsPanel />
       </aside>
 
-      {/* ── 左侧：员工工作屏幕 ──── */}
+      {/* ── 左侧：专注模式 + 员工工作屏幕 ──── */}
+      {!settingsOpen && <FocusModePanel />}
       {!settingsOpen && <WorkScreenPanel />}
 
       {/* ── 底部：CEO 指令终端（设置打开时隐藏） ── */}

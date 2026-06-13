@@ -1,5 +1,48 @@
-/** Agent 的四种实时状态 */
-export type AgentStatus = "idle" | "thinking" | "working" | "done";
+/** Agent 的实时状态（驱动 3D 动画） */
+export type AgentStatus =
+  | "idle"
+  | "thinking"
+  | "working"
+  | "done"
+  | "walking"
+  | "focusing"
+  | "resting";
+
+/** 办公室模式：正常 / 会议室专注 / 休息区 */
+export type OfficeMode = "normal" | "focus" | "break";
+
+/** 休息区活动类型 */
+export type RestActivity =
+  | "sofa"
+  | "coffee"
+  | "vending"
+  | "water"
+  | "microwave"
+  | "lounge";
+
+/** 员工世界坐标（平面移动） */
+export interface EmployeePose {
+  x: number;
+  z: number;
+  rotation: number;
+}
+
+/** 移动目标（到达后切换为 finalStatus） */
+export interface MovementTarget {
+  x: number;
+  z: number;
+  rotation: number;
+  finalStatus: AgentStatus;
+  restActivity?: RestActivity;
+  text?: string;
+}
+
+/** 可配置时段（时/分/秒） */
+export interface DurationParts {
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
 
 /** 子任务执行状态 */
 export type SubTaskStatus = "pending" | "thinking" | "running" | "done";

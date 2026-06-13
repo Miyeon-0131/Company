@@ -41,6 +41,23 @@ const BUBBLE_STYLE: Record<
       "bg-emerald-950/90 text-emerald-200 border-emerald-400/70 shadow-[0_0_18px_rgba(52,211,153,0.55)]",
     showDots: false,
   },
+  walking: {
+    text: "🚶 赶路中…",
+    className: "bg-slate-800/90 text-slate-300 border-slate-400/50",
+    showDots: false,
+  },
+  focusing: {
+    text: "🎯 专注会议中",
+    className:
+      "bg-sky-950/90 text-sky-200 border-sky-400/60 shadow-[0_0_18px_rgba(56,189,248,0.45)]",
+    showDots: true,
+  },
+  resting: {
+    text: "☕ 休息中",
+    className:
+      "bg-rose-950/90 text-rose-200 border-rose-400/50 shadow-[0_0_14px_rgba(251,113,133,0.35)]",
+    showDots: false,
+  },
 };
 
 export default function StatusBubble({

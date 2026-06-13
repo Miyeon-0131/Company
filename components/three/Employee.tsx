@@ -13,27 +13,42 @@ interface EmployeeProps {
   config: EmployeeConfig;
 }
 
-/**
- * 一个完整的工位单元 = 办公桌 + 低多边形员工。
- * 员工坐在椅子上面朝显示器（-z 方向），根据 status 播放动画：
- *  - idle:     轻微呼吸起伏
- *  - thinking: 歪头左右摇摆
- *  - working:  双臂交替快速敲击键盘 + 身体前倾
- *  - done:     整个人起跳欢呼，双臂高举
- */
+function isAtDesk(
+  x: number,
+  z: number,
+  deskX: number,
+  deskZ: number
+): boolean {
+  return Math.hypot(x - deskX, z - deskZ) < 0.45;
+}
+
 export default function Employee({ config }: EmployeeProps) {
   const status = useOfficeStore((s) => s.statuses[config.id] ?? "idle");
   const overrideText = useOfficeStore((s) => s.statusTexts[config.id]);
   const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+  const pose = useOfficeStore((s) => s.employeePoses[config.id]);
+  const hasTarget = useOfficeStore((s) => s.movementTargets[config.id]);
+  const restActivity = useOfficeStore((s) => s.restActivities[config.id]);
   const setActiveScreen = useOfficeStore((s) => s.setActiveScreen);
 
   const department = getDepartment(config.departmentId);
+  const worldX = pose?.x ?? config.position[0];
+  const worldZ = pose?.z ?? config.position[2];
+  const worldRot = pose?.rotation ?? config.rotation;
+  const atDesk =
+    !hasTarget &&
+    isAtDesk(worldX, worldZ, config.position[0], config.position[2]);
 
+  const rootRef = useRef<Group>(null);
   const characterRef = useRef<Group>(null);
   const torsoRef = useRef<Group>(null);
   const headRef = useRef<Group>(null);
   const leftArmRef = useRef<Group>(null);
   const rightArmRef = useRef<Group>(null);
+  const leftLegRef = useRef<Group>(null);
+  const rightLegRef = useRef<Group>(null);
+  const sitLegsRef = useRef<Group>(null);
+  const standLegsRef = useRef<Group>(null);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -42,70 +57,143 @@ export default function Employee({ config }: EmployeeProps) {
     const head = headRef.current;
     const leftArm = leftArmRef.current;
     const rightArm = rightArmRef.current;
-    if (!character || !torso || !head || !leftArm || !rightArm) return;
+    const leftLeg = leftLegRef.current;
+    const rightLeg = rightLegRef.current;
+    const sitLegs = sitLegsRef.current;
+    const standLegs = standLegsRef.current;
+    const root = rootRef.current;
+    if (
+      !character ||
+      !torso ||
+      !head ||
+      !leftArm ||
+      !rightArm ||
+      !leftLeg ||
+      !rightLeg ||
+      !sitLegs ||
+      !standLegs ||
+      !root
+    )
+      return;
 
-    /**
-     * 手臂旋转轴说明（枢轴在肩部，手臂沿 -z 向前伸向显示器）：
-     *  rotation.x < 0 → 手端向下（-Y），垂落到键盘上  ← 打字方向
-     *  rotation.x > 0 → 手端向上（+Y），举高庆祝
-     *  rotation.y 让水平方向左右摆：左臂取负 / 右臂取正 → 双手向中间聚拢（内八）
-     */
+    // 平滑转向目标朝向
+    const rotDiff = worldRot - root.rotation.y;
+    root.rotation.y += rotDiff * 0.12;
+
+    const isWalking = status === "walking" || !!hasTarget;
+    const isStanding = isWalking || (status === "resting" && restActivity !== "sofa");
+
     let charY = 0;
+    let charForwardZ = 0;
     let torsoLean = 0;
     let torsoScaleY = 1;
     let headTiltZ = 0;
     let headNodX = 0;
-    // 默认：手臂自然垂落、手放在键盘上（负值向下弯）
     let leftArmRotX = -0.5;
     let rightArmRotX = -0.5;
     let leftArmRotY = 0;
     let rightArmRotY = 0;
     let leftArmRotZ = 0;
     let rightArmRotZ = 0;
+    let leftLegRotX = 0;
+    let rightLegRotX = 0;
 
-    switch (status) {
-      case "idle":
-        torsoScaleY = 1 + Math.sin(t * 1.6) * 0.018; // 呼吸
-        headTiltZ = Math.sin(t * 0.7) * 0.05;
-        leftArmRotX = -0.5;
-        rightArmRotX = -0.5;
-        break;
+    if (isWalking) {
+      charY = Math.abs(Math.sin(t * 10)) * 0.04;
+      leftArmRotX = 0.35 + Math.sin(t * 10) * 0.45;
+      rightArmRotX = 0.35 + Math.sin(t * 10 + Math.PI) * 0.45;
+      leftLegRotX = Math.sin(t * 10) * 0.55;
+      rightLegRotX = Math.sin(t * 10 + Math.PI) * 0.55;
+    } else {
+      switch (status) {
+        case "idle":
+          torsoScaleY = 1 + Math.sin(t * 1.6) * 0.018;
+          headTiltZ = Math.sin(t * 0.7) * 0.05;
+          break;
 
-      case "thinking":
-        headTiltZ = Math.sin(t * 2.2) * 0.22;
-        headNodX = -0.12;
-        torsoLean = 0.08;
-        leftArmRotX = 0.85;  // 左臂抬起：手举到下巴附近托腮
-        leftArmRotY = -0.25; // 略向内收向脸部
-        rightArmRotX = -0.5; // 右臂仍放在桌上
-        break;
+        case "thinking":
+          headTiltZ = Math.sin(t * 2.2) * 0.22;
+          headNodX = -0.12;
+          torsoLean = 0.08;
+          leftArmRotX = 0.85;
+          leftArmRotY = -0.25;
+          break;
 
-      case "working":
-        // 原地端坐：身体几乎不动，头部保持端正不后仰
-        torsoLean = 0.06;
-        headNodX = 0;
-        // 手垂在键盘上（负值），上下交替敲击 —— 只有手在动
-        leftArmRotX = -0.55 + Math.sin(t * 16) * 0.2;
-        rightArmRotX = -0.55 + Math.sin(t * 16 + Math.PI) * 0.2;
-        leftArmRotY = -0.28;  // 左手向中间聚拢（内八）
-        rightArmRotY = 0.28;  // 右手向中间聚拢（内八）
-        break;
+        case "working":
+          torsoLean = 0.22;
+          charForwardZ = -0.14;
+          headNodX = 0.06;
+          leftArmRotX = -0.62 + Math.sin(t * 16) * 0.22;
+          rightArmRotX = -0.62 + Math.sin(t * 16 + Math.PI) * 0.22;
+          leftArmRotY = -0.32;
+          rightArmRotY = 0.32;
+          break;
 
-      case "done":
-        charY = Math.abs(Math.sin(t * 5)) * 0.45; // 欢呼起跳
-        headNodX = -0.2;
-        // 正值 → 手臂高举过头
-        leftArmRotX = 1.5 + Math.sin(t * 10) * 0.18;
-        rightArmRotX = 1.5 + Math.sin(t * 10 + 1) * 0.18;
-        leftArmRotZ = 0.35;   // 双臂外展成 V 字形
-        rightArmRotZ = -0.35;
-        break;
+        case "done":
+          charY = Math.abs(Math.sin(t * 5)) * 0.45;
+          headNodX = -0.2;
+          leftArmRotX = 1.5 + Math.sin(t * 10) * 0.18;
+          rightArmRotX = 1.5 + Math.sin(t * 10 + 1) * 0.18;
+          leftArmRotZ = 0.35;
+          rightArmRotZ = -0.35;
+          break;
+
+        case "focusing":
+          torsoLean = 0.14;
+          charForwardZ = -0.08;
+          headNodX = 0.04;
+          leftArmRotX = -0.5 + Math.sin(t * 12) * 0.12;
+          rightArmRotX = -0.5 + Math.sin(t * 12 + Math.PI) * 0.12;
+          leftArmRotY = -0.2;
+          rightArmRotY = 0.2;
+          break;
+
+        case "resting":
+          switch (restActivity) {
+            case "sofa":
+            case "lounge":
+              torsoLean = -0.1;
+              headTiltZ = Math.sin(t * 0.5) * 0.04;
+              leftArmRotX = -0.2;
+              rightArmRotX = -0.2;
+              leftArmRotZ = 0.5;
+              rightArmRotZ = -0.5;
+              break;
+            case "coffee":
+              torsoLean = 0.05;
+              rightArmRotX = -0.9 + Math.sin(t * 3) * 0.08;
+              rightArmRotY = 0.15;
+              leftArmRotX = -0.35;
+              break;
+            case "vending":
+              rightArmRotX = -1.1;
+              rightArmRotY = 0.1;
+              headNodX = 0.1;
+              break;
+            case "water":
+              leftArmRotX = -0.75;
+              leftArmRotY = -0.15;
+              rightArmRotX = -0.4;
+              break;
+            case "microwave":
+              torsoLean = 0.06;
+              leftArmRotX = -0.55;
+              rightArmRotX = -0.55;
+              headNodX = 0.12;
+              break;
+            default:
+              torsoScaleY = 1 + Math.sin(t * 1.2) * 0.015;
+              break;
+          }
+          break;
+      }
     }
 
     const lerp = (cur: number, target: number, k = 0.12) =>
       cur + (target - cur) * k;
 
     character.position.y = lerp(character.position.y, charY, 0.18);
+    character.position.z = lerp(character.position.z, isStanding ? 0 : 0.85 + charForwardZ, 0.15);
     torso.rotation.x = lerp(torso.rotation.x, torsoLean);
     torso.scale.y = lerp(torso.scale.y, torsoScaleY);
     head.rotation.z = lerp(head.rotation.z, headTiltZ);
@@ -116,45 +204,53 @@ export default function Employee({ config }: EmployeeProps) {
     rightArm.rotation.y = lerp(rightArm.rotation.y, rightArmRotY, 0.2);
     leftArm.rotation.z = lerp(leftArm.rotation.z, leftArmRotZ, 0.18);
     rightArm.rotation.z = lerp(rightArm.rotation.z, rightArmRotZ, 0.18);
+    leftLeg.rotation.x = lerp(leftLeg.rotation.x, leftLegRotX, 0.2);
+    rightLeg.rotation.x = lerp(rightLeg.rotation.x, rightLegRotX, 0.2);
+
+    const standVis = lerp(standLegs.scale.y, isStanding ? 1 : 0.001, 0.15);
+    const sitVis = lerp(sitLegs.scale.y, isStanding ? 0.001 : 1, 0.15);
+    standLegs.scale.set(1, standVis, 1);
+    sitLegs.scale.set(1, sitVis, 1);
+    standLegs.visible = standVis > 0.05;
+    sitLegs.visible = sitVis > 0.05;
   });
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    setActiveScreen(config.id); // 打开该员工的"工作屏幕"面板
+    setActiveScreen(config.id);
   };
 
-  return (
-    <group position={config.position} rotation={[0, config.rotation, 0]}>
-      <Desk working={status === "working"} accentColor={department.color} />
+  const charYOffset = 0;
+  const showDesk = atDesk;
 
-      {/* 角色：坐在椅子上，面朝 -z（显示器方向） */}
+  return (
+    <group ref={rootRef} position={[worldX, 0, worldZ]} rotation={[0, worldRot, 0]}>
+      {showDesk && (
+        <Desk working={status === "working"} accentColor={department.color} />
+      )}
+
       <group
         ref={characterRef}
-        position={[0, 0, 0.85]}
+        position={[0, charYOffset, 0.85]}
         onClick={handleClick}
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
       >
-        {/* 躯干（含头和手臂，一起前倾） */}
         <group ref={torsoRef} position={[0, 0.46, 0]}>
-          {/* 身体 */}
           <mesh position={[0, 0.3, 0]} castShadow>
             <boxGeometry args={[0.42, 0.52, 0.3]} />
             <meshStandardMaterial color={config.shirtColor} flatShading />
           </mesh>
 
-          {/* 头 */}
           <group ref={headRef} position={[0, 0.72, 0]}>
             <mesh castShadow>
               <boxGeometry args={[0.3, 0.28, 0.28]} />
               <meshStandardMaterial color={config.skinColor} flatShading />
             </mesh>
-            {/* 头发 */}
             <mesh position={[0, 0.12, 0.03]}>
               <boxGeometry args={[0.32, 0.1, 0.3]} />
               <meshStandardMaterial color="#2b2118" flatShading />
             </mesh>
-            {/* 眼睛（朝 -z 即面向屏幕） */}
             <mesh position={[-0.07, 0, -0.145]}>
               <boxGeometry args={[0.04, 0.04, 0.01]} />
               <meshStandardMaterial color="#1a1a2e" />
@@ -165,20 +261,17 @@ export default function Employee({ config }: EmployeeProps) {
             </mesh>
           </group>
 
-          {/* 左臂（肩部为枢轴，向 -z 前伸） */}
           <group ref={leftArmRef} position={[-0.26, 0.45, 0]}>
             <mesh position={[0, 0, -0.18]} castShadow>
               <boxGeometry args={[0.1, 0.1, 0.38]} />
               <meshStandardMaterial color={config.shirtColor} flatShading />
             </mesh>
-            {/* 手 */}
             <mesh position={[0, 0, -0.39]}>
               <boxGeometry args={[0.09, 0.09, 0.08]} />
               <meshStandardMaterial color={config.skinColor} flatShading />
             </mesh>
           </group>
 
-          {/* 右臂 */}
           <group ref={rightArmRef} position={[0.26, 0.45, 0]}>
             <mesh position={[0, 0, -0.18]} castShadow>
               <boxGeometry args={[0.1, 0.1, 0.38]} />
@@ -191,17 +284,42 @@ export default function Employee({ config }: EmployeeProps) {
           </group>
         </group>
 
-        {/* 大腿（坐姿，朝 -z 伸向桌下） */}
-        <mesh position={[-0.11, 0.42, -0.14]} castShadow>
-          <boxGeometry args={[0.14, 0.12, 0.36]} />
-          <meshStandardMaterial color="#2c3357" flatShading />
-        </mesh>
-        <mesh position={[0.11, 0.42, -0.14]} castShadow>
-          <boxGeometry args={[0.14, 0.12, 0.36]} />
-          <meshStandardMaterial color="#2c3357" flatShading />
-        </mesh>
+        {/* 坐姿大腿 */}
+        <group ref={sitLegsRef}>
+          <mesh position={[-0.11, 0.42, -0.14]} castShadow>
+            <boxGeometry args={[0.14, 0.12, 0.36]} />
+            <meshStandardMaterial color="#2c3357" flatShading />
+          </mesh>
+          <mesh position={[0.11, 0.42, -0.14]} castShadow>
+            <boxGeometry args={[0.14, 0.12, 0.36]} />
+            <meshStandardMaterial color="#2c3357" flatShading />
+          </mesh>
+        </group>
 
-        {/* 头顶状态气泡 + 名牌 */}
+        {/* 站立行走：小腿 + 鞋子 */}
+        <group ref={standLegsRef} position={[0, 0, 0]}>
+          <group ref={leftLegRef} position={[-0.11, 0.48, 0]}>
+            <mesh position={[0, -0.22, 0]} castShadow>
+              <boxGeometry args={[0.13, 0.44, 0.14]} />
+              <meshStandardMaterial color="#2c3357" flatShading />
+            </mesh>
+            <mesh position={[0, -0.48, 0.03]} castShadow>
+              <boxGeometry args={[0.15, 0.08, 0.22]} />
+              <meshStandardMaterial color="#1a1f36" flatShading />
+            </mesh>
+          </group>
+          <group ref={rightLegRef} position={[0.11, 0.48, 0]}>
+            <mesh position={[0, -0.22, 0]} castShadow>
+              <boxGeometry args={[0.13, 0.44, 0.14]} />
+              <meshStandardMaterial color="#2c3357" flatShading />
+            </mesh>
+            <mesh position={[0, -0.48, 0.03]} castShadow>
+              <boxGeometry args={[0.15, 0.08, 0.22]} />
+              <meshStandardMaterial color="#1a1f36" flatShading />
+            </mesh>
+          </group>
+        </group>
+
         <StatusBubble
           employeeId={config.id}
           status={status}

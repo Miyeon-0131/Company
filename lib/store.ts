@@ -1,42 +1,80 @@
 import { create } from "zustand";
 import { IdleChatterTurn } from "./idleChatter";
-import { AgentStatus, Artifact, LogEntry, Mission, ScreenEntry, SubTask } from "./types";
+import {
+  MEETING_ANCHORS,
+  REST_ACTIVITY_LABELS,
+  REST_ANCHORS,
+} from "./officeAnchors";
+import { durationToSeconds } from "./focusMode";
+import {
+  AgentStatus,
+  Artifact,
+  DurationParts,
+  EmployeePose,
+  LogEntry,
+  Mission,
+  MovementTarget,
+  OfficeMode,
+  RestActivity,
+  ScreenEntry,
+  SubTask,
+} from "./types";
 import { EMPLOYEES } from "./employees";
 
 const STATUS_CYCLE: AgentStatus[] = ["idle", "thinking", "working", "done"];
+const WALK_SPEED = 3.2;
+const ARRIVE_DIST = 0.2;
 
 let logId = 0;
 let screenId = 0;
 const now = () =>
   new Date().toLocaleTimeString("zh-CN", { hour12: false });
 
+const initialPoses = (): Record<string, EmployeePose> =>
+  Object.fromEntries(
+    EMPLOYEES.map((e) => [
+      e.id,
+      { x: e.position[0], z: e.position[2], rotation: e.rotation },
+    ])
+  );
+
+const initialStatuses = Object.fromEntries(
+  EMPLOYEES.map((e) => [e.id, "idle" as AgentStatus])
+);
+
 interface OfficeState {
-  /** 每个员工的实时状态（驱动 3D 动画） */
   statuses: Record<string, AgentStatus>;
-  /** 头顶气泡的覆盖文案（由 Task Manager 下发） */
   statusTexts: Record<string, string | null>;
-  /** 当前任务（含拆解出的子任务依赖图） */
+  employeePoses: Record<string, EmployeePose>;
+  movementTargets: Record<string, MovementTarget | null>;
+  restActivities: Record<string, RestActivity | null>;
+  officeMode: OfficeMode;
+  modeRemainingSec: number;
+  focusDurationSec: number;
+  breakDurationSec: number;
   mission: Mission | null;
-  /** 指令终端日志流 */
   logs: LogEntry[];
-  /** 是否弹出最终交付报告 */
   showResult: boolean;
-  /** 每个员工的"电脑屏幕"内容（工作记录 + 可点击链接） */
   screens: Record<string, ScreenEntry[]>;
-  /** 当前正在查看哪个员工的屏幕（null = 关闭面板） */
   activeScreen: string | null;
-  /** 设置面板是否打开（用于隐藏遮挡的 HUD） */
   settingsOpen: boolean;
-  /** 本次任务交付文件的浏览器缓存（url → 含 base64 的 Artifact） */
   artifactCache: Record<string, Artifact>;
-  /** 全局待机播报：最多两人同时说话（主发言 + 可选接话） */
   idleChatter: IdleChatterTurn | null;
 
   setStatus: (employeeId: string, status: AgentStatus, text?: string) => void;
-  /** Step 4 核心 API：给某员工分配任务（状态置为 working 并更新气泡文案） */
   assignTask: (employeeId: string, task: string) => void;
-  /** 调试用：点击员工循环切换状态（任务执行中禁用） */
   cycleStatus: (employeeId: string) => void;
+  updateEmployeePose: (employeeId: string, pose: Partial<EmployeePose>) => void;
+  setMovementTarget: (employeeId: string, target: MovementTarget | null) => void;
+  tickMovement: (dt: number) => void;
+
+  startFocusSession: (focus: DurationParts, breakTime: DurationParts) => void;
+  stopOfficeMode: () => void;
+  beginBreakPhase: () => void;
+  tickModeTimer: () => void;
+  dispatchAllToMeeting: () => void;
+  dispatchAllToBreak: () => void;
+  returnAllToDesks: () => void;
 
   startMission: (prompt: string) => void;
   setMissionTasks: (tasks: SubTask[], source: "llm" | "mock") => void;
@@ -56,13 +94,16 @@ interface OfficeState {
   resetAll: () => void;
 }
 
-const initialStatuses = Object.fromEntries(
-  EMPLOYEES.map((e) => [e.id, "idle" as AgentStatus])
-);
-
 export const useOfficeStore = create<OfficeState>((set, get) => ({
   statuses: { ...initialStatuses },
   statusTexts: {},
+  employeePoses: initialPoses(),
+  movementTargets: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
+  restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
+  officeMode: "normal",
+  modeRemainingSec: 0,
+  focusDurationSec: 25 * 60,
+  breakDurationSec: 5 * 60,
   mission: null,
   logs: [],
   showResult: false,
@@ -86,7 +127,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
   cycleStatus: (employeeId) => {
     const mission = get().mission;
-    if (mission && mission.status !== "done") return; // 任务执行中禁止手动切换
+    if (mission && mission.status !== "done") return;
+    if (get().officeMode !== "normal") return;
     set((state) => {
       const current = state.statuses[employeeId] ?? "idle";
       const next =
@@ -96,6 +138,190 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
         statusTexts: { ...state.statusTexts, [employeeId]: null },
       };
     });
+  },
+
+  updateEmployeePose: (employeeId, pose) =>
+    set((state) => ({
+      employeePoses: {
+        ...state.employeePoses,
+        [employeeId]: { ...state.employeePoses[employeeId]!, ...pose },
+      },
+    })),
+
+  setMovementTarget: (employeeId, target) =>
+    set((state) => ({
+      movementTargets: { ...state.movementTargets, [employeeId]: target },
+    })),
+
+  tickMovement: (dt) => {
+    const state = get();
+    let changed = false;
+    const nextPoses = { ...state.employeePoses };
+    const nextStatuses = { ...state.statuses };
+    const nextTexts = { ...state.statusTexts };
+    const nextTargets = { ...state.movementTargets };
+    const nextRest = { ...state.restActivities };
+
+    for (const emp of EMPLOYEES) {
+      const target = state.movementTargets[emp.id];
+      if (!target) continue;
+
+      const pose = nextPoses[emp.id]!;
+      const dx = target.x - pose.x;
+      const dz = target.z - pose.z;
+      const dist = Math.hypot(dx, dz);
+
+      if (dist <= ARRIVE_DIST) {
+        nextPoses[emp.id] = {
+          x: target.x,
+          z: target.z,
+          rotation: target.rotation,
+        };
+        nextStatuses[emp.id] = target.finalStatus;
+        nextTexts[emp.id] = target.text ?? null;
+        nextTargets[emp.id] = null;
+        nextRest[emp.id] = target.restActivity ?? null;
+        changed = true;
+        continue;
+      }
+
+      const step = WALK_SPEED * dt;
+      const ratio = Math.min(1, step / dist);
+      const face = Math.atan2(dx, dz);
+      nextPoses[emp.id] = {
+        x: pose.x + dx * ratio,
+        z: pose.z + dz * ratio,
+        rotation: pose.rotation + (face - pose.rotation) * 0.15,
+      };
+      if (nextStatuses[emp.id] !== "walking") {
+        nextStatuses[emp.id] = "walking";
+        nextTexts[emp.id] = "🚶 赶路中…";
+      }
+      changed = true;
+    }
+
+    if (changed) {
+      set({
+        employeePoses: nextPoses,
+        statuses: nextStatuses,
+        statusTexts: nextTexts,
+        movementTargets: nextTargets,
+        restActivities: nextRest,
+      });
+    }
+  },
+
+  dispatchAllToMeeting: () => {
+    const s = get();
+    s.setIdleChatter(null);
+    const targets: Record<string, MovementTarget | null> = {};
+    EMPLOYEES.forEach((emp, i) => {
+      const anchor = MEETING_ANCHORS[i % MEETING_ANCHORS.length]!;
+      targets[emp.id] = {
+        x: anchor.x,
+        z: anchor.z,
+        rotation: anchor.rotation,
+        finalStatus: "focusing",
+        text: "🎯 专注会议中",
+      };
+    });
+    set({
+      movementTargets: { ...s.movementTargets, ...targets },
+      restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
+    });
+    EMPLOYEES.forEach((e) => s.setStatus(e.id, "walking", "🚶 去会议室…"));
+    s.addLog("系统", "全员前往会议室，进入专注时间", "system");
+  },
+
+  dispatchAllToBreak: () => {
+    const s = get();
+    s.setIdleChatter(null);
+    const targets: Record<string, MovementTarget | null> = {};
+    EMPLOYEES.forEach((emp, i) => {
+      const anchor = REST_ANCHORS[i % REST_ANCHORS.length]!;
+      targets[emp.id] = {
+        x: anchor.x,
+        z: anchor.z,
+        rotation: anchor.rotation,
+        finalStatus: "resting",
+        restActivity: anchor.activity,
+        text: REST_ACTIVITY_LABELS[anchor.activity],
+      };
+    });
+    set({
+      movementTargets: { ...s.movementTargets, ...targets },
+    });
+    EMPLOYEES.forEach((e) => s.setStatus(e.id, "walking", "🚶 去休息区…"));
+    s.addLog("系统", "专注结束，全员前往休息区", "system");
+  },
+
+  returnAllToDesks: () => {
+    const s = get();
+    const targets: Record<string, MovementTarget | null> = {};
+    EMPLOYEES.forEach((emp) => {
+      targets[emp.id] = {
+        x: emp.position[0],
+        z: emp.position[2],
+        rotation: emp.rotation,
+        finalStatus: "idle",
+      };
+    });
+    set({
+      movementTargets: { ...s.movementTargets, ...targets },
+      restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
+      officeMode: "normal",
+      modeRemainingSec: 0,
+    });
+    EMPLOYEES.forEach((e) => {
+      if (s.statuses[e.id] !== "working" && s.statuses[e.id] !== "thinking") {
+        s.setStatus(e.id, "walking", "🚶 回工位…");
+      }
+    });
+    s.addLog("系统", "全员返回各自工位", "system");
+  },
+
+  startFocusSession: (focus, breakTime) => {
+    const focusSec = Math.max(1, durationToSeconds(focus));
+    const breakSec = Math.max(0, durationToSeconds(breakTime));
+    set({
+      officeMode: "focus",
+      focusDurationSec: focusSec,
+      breakDurationSec: breakSec,
+      modeRemainingSec: focusSec,
+    });
+    get().dispatchAllToMeeting();
+  },
+
+  beginBreakPhase: () => {
+    const breakSec = get().breakDurationSec;
+    if (breakSec <= 0) {
+      get().returnAllToDesks();
+      return;
+    }
+    set({ officeMode: "break", modeRemainingSec: breakSec });
+    get().dispatchAllToBreak();
+  },
+
+  stopOfficeMode: () => {
+    if (get().officeMode === "normal") return;
+    get().returnAllToDesks();
+    get().addLog("系统", "专注/休息模式已手动停止", "system");
+  },
+
+  tickModeTimer: () => {
+    const s = get();
+    if (s.officeMode === "normal" || s.modeRemainingSec <= 0) return;
+    const next = s.modeRemainingSec - 1;
+    if (next > 0) {
+      set({ modeRemainingSec: next });
+      return;
+    }
+    if (s.officeMode === "focus") {
+      get().beginBreakPhase();
+    } else {
+      get().returnAllToDesks();
+      get().addLog("系统", "休息结束，回到工位摸鱼", "system");
+    }
   },
 
   startMission: (prompt) =>
@@ -150,7 +376,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   addLog: (source, text, kind = "system") =>
     set((state) => ({
       logs: [
-        ...state.logs.slice(-99), // 最多保留 100 条
+        ...state.logs.slice(-99),
         { id: ++logId, time: now(), source, text, kind },
       ],
     })),
@@ -160,7 +386,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       screens: {
         ...state.screens,
         [employeeId]: [
-          ...(state.screens[employeeId] ?? []).slice(-59), // 每屏最多 60 条
+          ...(state.screens[employeeId] ?? []).slice(-59),
           { ...entry, id: ++screenId, time: now() },
         ],
       },
@@ -201,7 +427,6 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       showResult: false,
       screens: {},
       artifactCache: {},
-      settingsOpen: false,
       idleChatter: null,
     }),
 }));
