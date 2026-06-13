@@ -28,6 +28,8 @@ interface OfficeState {
   settingsOpen: boolean;
   /** 本次任务交付文件的浏览器缓存（url → 含 base64 的 Artifact） */
   artifactCache: Record<string, Artifact>;
+  /** 全局待机播报：当前正在说话的员工（同时仅一人） */
+  idleChatter: { speakerId: string; text: string } | null;
 
   setStatus: (employeeId: string, status: AgentStatus, text?: string) => void;
   /** Step 4 核心 API：给某员工分配任务（状态置为 working 并更新气泡文案） */
@@ -48,6 +50,7 @@ interface OfficeState {
   setActiveScreen: (employeeId: string | null) => void;
   setShowResult: (show: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  setIdleChatter: (payload: { speakerId: string; text: string } | null) => void;
   cacheArtifacts: (artifacts: Artifact[] | undefined) => void;
   resetAll: () => void;
 }
@@ -66,6 +69,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   activeScreen: null,
   settingsOpen: false,
   artifactCache: {},
+  idleChatter: null,
 
   setStatus: (employeeId, status, text) =>
     set((state) => ({
@@ -167,6 +171,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
 
+  setIdleChatter: (payload) => set({ idleChatter: payload }),
+
   cacheArtifacts: (artifacts) =>
     set((state) => {
       if (!artifacts?.length) return state;
@@ -186,5 +192,6 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       screens: {},
       artifactCache: {},
       settingsOpen: false,
+      idleChatter: null,
     }),
 }));

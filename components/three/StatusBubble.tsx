@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Html } from "@react-three/drei";
 import { AgentStatus } from "@/lib/types";
-import { getIdleChatter } from "@/lib/idleChatter";
+import { useOfficeStore } from "@/lib/store";
 
 interface StatusBubbleProps {
   employeeId: string;
@@ -20,7 +19,7 @@ const BUBBLE_STYLE: Record<
   { text: string; className: string; showDots: boolean }
 > = {
   idle: {
-    text: "☕ 摸鱼中",
+    text: "☕ 待机",
     className: "bg-slate-800/90 text-slate-300 border-slate-500/50",
     showDots: false,
   },
@@ -54,27 +53,23 @@ export default function StatusBubble({
   hideLabels,
 }: StatusBubbleProps) {
   const style = BUBBLE_STYLE[status];
-  const [idleTick, setIdleTick] = useState(0);
-
-  // 待机时每 9 秒换一句闲聊
-  useEffect(() => {
-    if (status !== "idle") return;
-    const id = setInterval(() => setIdleTick((t) => t + 1), 9000);
-    return () => clearInterval(id);
-  }, [status]);
+  const idleChatter = useOfficeStore((s) => s.idleChatter);
+  const isSpeaking =
+    status === "idle" &&
+    !overrideText &&
+    idleChatter?.speakerId === employeeId;
 
   if (hideLabels) return null;
 
-  const idleLine = getIdleChatter(employeeId, idleTick);
   const text =
     overrideText ??
     (status === "working"
       ? workingLabel
-      : status === "idle"
-        ? idleLine
-        : style.text);
-
-  const isIdleChat = status === "idle" && !overrideText;
+      : isSpeaking
+        ? idleChatter!.text
+        : status === "idle"
+          ? null
+          : style.text);
 
   return (
     <Html
@@ -85,35 +80,34 @@ export default function StatusBubble({
       style={{ pointerEvents: "none" }}
     >
       <div className="flex select-none flex-col items-center gap-1">
-        {/* 状态气泡 / 待机对话框 */}
-        <div className="relative flex flex-col items-center">
-          <div
-            className={`border px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition-all duration-500 ${
-              isIdleChat
-                ? "max-w-[210px] whitespace-normal text-left leading-relaxed rounded-2xl rounded-bl-sm bg-slate-800/95 text-slate-200 border-slate-500/55 shadow-lg"
-                : `whitespace-nowrap rounded-full ${style.className} ${
-                    status === "done" ? "animate-bounce" : ""
-                  }`
-            }`}
-          >
-            <span>{text}</span>
-            {style.showDots && (
-              <span className="ml-1.5 inline-flex gap-0.5 align-middle">
-                <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
-                <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
-                <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
-              </span>
+        {text != null && (
+          <div className="relative flex flex-col items-center">
+            <div
+              className={`border px-3.5 py-2 text-xs font-medium backdrop-blur-sm transition-all duration-300 ${
+                isSpeaking
+                  ? "w-[min(300px,72vw)] max-w-[300px] whitespace-normal text-left leading-relaxed rounded-2xl rounded-bl-sm bg-slate-800/95 text-slate-200 border-slate-500/55 shadow-lg"
+                  : `whitespace-nowrap rounded-full ${style.className} ${
+                      status === "done" ? "animate-bounce" : ""
+                    }`
+              }`}
+            >
+              <span>{text}</span>
+              {style.showDots && status !== "idle" && (
+                <span className="ml-1.5 inline-flex gap-0.5 align-middle">
+                  <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
+                  <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
+                  <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
+                </span>
+              )}
+            </div>
+            {isSpeaking && (
+              <div
+                className="absolute -bottom-1.5 left-4 h-2.5 w-2.5 rotate-45 border-b border-l border-slate-500/55 bg-slate-800/95"
+                aria-hidden
+              />
             )}
           </div>
-          {/* 对话框小尾巴 */}
-          {isIdleChat && (
-            <div
-              className="absolute -bottom-1.5 left-3 h-2.5 w-2.5 rotate-45 border-b border-l border-slate-500/55 bg-slate-800/95"
-              aria-hidden
-            />
-          )}
-        </div>
-        {/* 职位名牌 */}
+        )}
         <div
           className="whitespace-nowrap rounded-md border border-white/10 bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 backdrop-blur-sm"
           style={{ borderBottomColor: accentColor, borderBottomWidth: 2 }}

@@ -7,6 +7,7 @@ import CommandConsole from "@/components/ui/CommandConsole";
 import ResultModal from "@/components/ui/ResultModal";
 import SettingsPanel from "@/components/ui/SettingsPanel";
 import WorkScreenPanel from "@/components/ui/WorkScreenPanel";
+import IdleChatterController from "@/components/IdleChatterController";
 
 // R3F 场景只能在客户端渲染
 const OfficeScene = dynamic(() => import("@/components/three/OfficeScene"), {
@@ -28,6 +29,7 @@ export default function Home() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden">
+      <IdleChatterController />
       <OfficeScene />
 
       {/* ── 顶部：公司标题 ─────────────────────────── */}
