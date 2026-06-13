@@ -172,7 +172,16 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
 
-  setIdleChatter: (payload) => set({ idleChatter: payload }),
+  setIdleChatter: (payload) =>
+    set({
+      idleChatter:
+        payload &&
+        typeof payload === "object" &&
+        "lead" in payload &&
+        payload.lead?.speakerId
+          ? payload
+          : null,
+    }),
 
   cacheArtifacts: (artifacts) =>
     set((state) => {

@@ -156,9 +156,93 @@ const GENERIC_REPLIES = [
   "是啊，上下游衔接好交付才顺",
 ];
 
+/** 补充式接话：不说「是啊」，而是顺势延展 */
+const EXPAND_TO_PRIMARY: Record<string, string[]> = {
+  "global-searcher": [
+    "另外，多源交叉验证能少踩坑",
+    "补充一下，检索结果我会标可信度",
+    "顺带一提，外文摘要我可以帮忙翻",
+  ],
+  "local-searcher": [
+    "另外，中文同义词表我也备好了",
+    "补充一下，地域词我会单独建字段",
+    "顺带一提，公众号链接能一并归档",
+  ],
+  "code-scout": [
+    "另外，许可证不合规的我会在清单里标红",
+    "补充一下，依赖版本我也会顺手查",
+    "顺带一提，示例代码我会挑 star 高的",
+  ],
+  "data-analyst": [
+    "另外，透视表模板我已经搭好了",
+    "补充一下，空值我会统一标 NA",
+    "顺带一提，图表数据我会另存一表",
+  ],
+  "script-runner": [
+    "另外，日志我会按步骤落盘",
+    "补充一下，异常行会单独导出",
+    "顺带一提，批处理支持断点续跑",
+  ],
+  copywriter: [
+    "另外，Executive Summary 我会先写",
+    "补充一下，引用格式按国标来",
+    "顺带一提，术语表可以附在附录",
+  ],
+  "presentation-designer": [
+    "另外，动画我只用在关键页",
+    "补充一下，配色会跟封面统一",
+    "顺带一提，备注区留给演讲提示",
+  ],
+  "image-generator": [
+    "另外，导出我会留 PNG 和 WebP 两份",
+    "补充一下，构图留白方便后期加字",
+    "顺带一提，风格参考我会存 moodboard",
+  ],
+  "format-converter": [
+    "另外，书签目录我会自动生成",
+    "补充一下，图片会压到 150dpi",
+    "顺带一提，合并前会跑一遍字体检查",
+  ],
+  "email-sender": [
+    "另外，抄送列表我会单独确认",
+    "补充一下，大附件走云链更稳",
+    "顺带一提，退信我会立刻告警",
+  ],
+};
+
+const GENERIC_EXPANDS = [
+  "另外，这条流程上下游都能接上",
+  "补充一下，交付前我会再过一遍",
+  "顺带一提，有任务随时喊我",
+];
+
+/** 单人随口感慨（短句、轻松） */
+const SOLO_QUIPS = [
+  "☕ 工具都就绪了，就等派活",
+  "🌤️ 办公室今天挺安静的",
+  "📋  checklist 过了一遍，没漏项",
+  "💤 待机省电模式… 有活立刻醒",
+  "🎧 白噪音开着，进入工作心流",
+  "🗂️ 模板库整理好了，随时能抄",
+];
+
+export type ChatterMode = "solo" | "reply" | "expand" | "quip";
+
 export interface IdleChatterTurn {
   lead: { speakerId: string; text: string };
   reply?: { speakerId: string; text: string };
+}
+
+/** 按轮次决定说话方式：常单人，偶尔双人接话或补充 */
+export function pickChatterMode(turnIdx: number, idleCount: number): ChatterMode {
+  if (idleCount < 2) {
+    return turnIdx % 4 === 0 ? "quip" : "solo";
+  }
+  const roll = (turnIdx * 7 + idleCount * 3) % 10;
+  if (roll < 5) return "solo";
+  if (roll < 7) return "reply";
+  if (roll < 9) return "expand";
+  return "quip";
 }
 
 /** 取某岗位的第 n 条职务相关台词 */
@@ -178,5 +262,22 @@ export function getReplyChatter(
   return pool[index % pool.length]!;
 }
 
-export const IDLE_CHATTER_SHOW_MS = 3000;
-export const IDLE_CHATTER_GAP_MS = 5000;
+/** 第二人补充：顺势延展，不用「是啊」开头 */
+export function getExpandChatter(
+  primaryId: string,
+  responderId: string,
+  index: number
+): string {
+  void responderId;
+  const pool = EXPAND_TO_PRIMARY[primaryId] ?? GENERIC_EXPANDS;
+  return pool[index % pool.length]!;
+}
+
+/** 单人随口感慨 */
+export function getQuipChatter(index: number): string {
+  return SOLO_QUIPS[index % SOLO_QUIPS.length]!;
+}
+
+export const IDLE_CHATTER_SHOW_MS = 10000;
+export const IDLE_CHATTER_REPLY_DELAY_MS = 3000;
+export const IDLE_CHATTER_GAP_MS = 6000;

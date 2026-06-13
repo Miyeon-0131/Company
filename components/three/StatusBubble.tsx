@@ -57,7 +57,7 @@ export default function StatusBubble({
   const isLead =
     status === "idle" &&
     !overrideText &&
-    idleChatter?.lead.speakerId === employeeId;
+    idleChatter?.lead?.speakerId === employeeId;
   const isReply =
     status === "idle" &&
     !overrideText &&
@@ -75,8 +75,8 @@ export default function StatusBubble({
         : isReply
           ? idleChatter!.reply!.text
           : status === "idle"
-            ? null
-            : style.text);
+          ? null
+          : style.text);
 
   return (
     <Html
