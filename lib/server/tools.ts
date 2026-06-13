@@ -48,6 +48,22 @@ interface RepoHit {
 
 const GEN_DIR = generatedDir();
 
+const ARTIFACT_MIME: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".docx":
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx":
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".pptx":
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".html": "text/html; charset=utf-8",
+  ".json": "application/json",
+};
+
 const topic = (prompt: string) =>
   prompt.length > 24 ? `${prompt.slice(0, 24)}…` : prompt;
 
@@ -58,8 +74,19 @@ async function saveArtifact(
 ): Promise<Artifact> {
   const dir = path.join(GEN_DIR, missionId);
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, name), data);
-  return { name, url: `/api/files/${missionId}/${encodeURIComponent(name)}` };
+  const buffer = Buffer.isBuffer(data)
+    ? data
+    : typeof data === "string"
+      ? Buffer.from(data, "utf8")
+      : Buffer.from(data);
+  await fs.writeFile(path.join(dir, name), buffer);
+  const ext = path.extname(name).toLowerCase();
+  return {
+    name,
+    url: `/api/files/${missionId}/${encodeURIComponent(name)}`,
+    dataBase64: buffer.toString("base64"),
+    mimeType: ARTIFACT_MIME[ext] ?? "application/octet-stream",
+  };
 }
 
 /** 从上游产出中收集全部网页来源（搜索结果 + GitHub 仓库），按 URL 去重 */

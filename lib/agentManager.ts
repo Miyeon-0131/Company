@@ -173,6 +173,7 @@ async function executeTask(
         store().addScreen(task.employeeId, { kind: "link", text: title, url });
       });
   }
+  store().cacheArtifacts(result.artifacts);
   result.artifacts?.forEach((a) =>
     store().addScreen(task.employeeId, {
       kind: "artifact",
@@ -184,7 +185,11 @@ async function executeTask(
   store().updateTask(task.id, {
     status: "done",
     output: result.summary,
-    artifacts: result.artifacts,
+    artifacts: result.artifacts?.map(({ name, url, mimeType }) => ({
+      name,
+      url,
+      mimeType,
+    })),
     mode: result.mode,
   });
   store().setStatus(task.employeeId, "done");

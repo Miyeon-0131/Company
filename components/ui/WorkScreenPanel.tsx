@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOfficeStore } from "@/lib/store";
 import { EMPLOYEES, getDepartment } from "@/lib/employees";
 import { AgentStatus, ScreenEntry } from "@/lib/types";
+import { downloadArtifact } from "@/lib/client/download";
 
 const STATUS_BADGE: Record<AgentStatus, { text: string; className: string }> = {
   idle: { text: "待机", className: "border-slate-500/40 text-slate-400" },
@@ -12,7 +13,30 @@ const STATUS_BADGE: Record<AgentStatus, { text: string; className: string }> = {
   done: { text: "已完成", className: "border-emerald-400/50 text-emerald-300" },
 };
 
-function EntryLine({ entry }: { entry: ScreenEntry }) {
+function EntryLine({
+  entry,
+  artifactCache,
+}: {
+  entry: ScreenEntry;
+  artifactCache: Record<string, import("@/lib/types").Artifact>;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const handleArtifactDownload = async () => {
+    if (!entry.url || busy) return;
+    setBusy(true);
+    try {
+      await downloadArtifact(
+        { name: entry.text, url: entry.url },
+        artifactCache
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "下载失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   switch (entry.kind) {
     case "link":
       return (
@@ -35,17 +59,17 @@ function EntryLine({ entry }: { entry: ScreenEntry }) {
       );
     case "artifact":
       return (
-        <a
-          href={entry.url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 rounded-md border border-emerald-400/15 bg-emerald-950/30 px-2.5 py-1.5 text-emerald-200 transition-colors hover:border-emerald-400/40 hover:bg-emerald-900/40"
+        <button
+          type="button"
+          disabled={busy}
+          onClick={handleArtifactDownload}
+          className="flex w-full items-center gap-2 rounded-md border border-emerald-400/15 bg-emerald-950/30 px-2.5 py-1.5 text-left text-emerald-200 transition-colors hover:border-emerald-400/40 hover:bg-emerald-900/40 disabled:opacity-50"
         >
-          <span>📎</span>
+          <span>{busy ? "⏳" : "📎"}</span>
           <span className="truncate underline-offset-2 hover:underline">
             {entry.text}
           </span>
-        </a>
+        </button>
       );
     case "result":
       return (
@@ -75,6 +99,7 @@ export default function WorkScreenPanel() {
   const entries =
     useOfficeStore((s) => (activeScreen ? s.screens[activeScreen] : undefined)) ??
     EMPTY_ENTRIES;
+  const artifactCache = useOfficeStore((s) => s.artifactCache);
   const status =
     useOfficeStore((s) => (activeScreen ? s.statuses[activeScreen] : undefined)) ??
     "idle";
@@ -124,7 +149,13 @@ export default function WorkScreenPanel() {
             ☕ 今天还没有任务，正在摸鱼…
           </p>
         ) : (
-          entries.map((entry) => <EntryLine key={entry.id} entry={entry} />)
+          entries.map((entry) => (
+            <EntryLine
+              key={entry.id}
+              entry={entry}
+              artifactCache={artifactCache}
+            />
+          ))
         )}
         {status === "working" && (
           <p className="animate-pulse text-cyan-300">▍正在执行...</p>

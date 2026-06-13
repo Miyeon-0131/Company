@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { AgentStatus, LogEntry, Mission, ScreenEntry, SubTask } from "./types";
+import { AgentStatus, Artifact, LogEntry, Mission, ScreenEntry, SubTask } from "./types";
 import { EMPLOYEES } from "./employees";
 
 const STATUS_CYCLE: AgentStatus[] = ["idle", "thinking", "working", "done"];
@@ -24,6 +24,8 @@ interface OfficeState {
   screens: Record<string, ScreenEntry[]>;
   /** 当前正在查看哪个员工的屏幕（null = 关闭面板） */
   activeScreen: string | null;
+  /** 本次任务交付文件的浏览器缓存（url → 含 base64 的 Artifact） */
+  artifactCache: Record<string, Artifact>;
 
   setStatus: (employeeId: string, status: AgentStatus, text?: string) => void;
   /** Step 4 核心 API：给某员工分配任务（状态置为 working 并更新气泡文案） */
@@ -43,6 +45,7 @@ interface OfficeState {
   ) => void;
   setActiveScreen: (employeeId: string | null) => void;
   setShowResult: (show: boolean) => void;
+  cacheArtifacts: (artifacts: Artifact[] | undefined) => void;
   resetAll: () => void;
 }
 
@@ -58,6 +61,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   showResult: false,
   screens: {},
   activeScreen: null,
+  artifactCache: {},
 
   setStatus: (employeeId, status, text) =>
     set((state) => ({
@@ -157,6 +161,16 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
   setShowResult: (show) => set({ showResult: show }),
 
+  cacheArtifacts: (artifacts) =>
+    set((state) => {
+      if (!artifacts?.length) return state;
+      const next = { ...state.artifactCache };
+      artifacts.forEach((a) => {
+        if (a.dataBase64) next[a.url] = a;
+      });
+      return { artifactCache: next };
+    }),
+
   resetAll: () =>
     set({
       statuses: { ...initialStatuses },
@@ -164,5 +178,6 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       mission: null,
       showResult: false,
       screens: {},
+      artifactCache: {},
     }),
 }));

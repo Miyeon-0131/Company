@@ -1,20 +1,52 @@
 "use client";
 
+import { useState } from "react";
 import { useOfficeStore } from "@/lib/store";
 import { EMPLOYEES, getDepartment } from "@/lib/employees";
+import { downloadAllArtifacts, downloadArtifact } from "@/lib/client/download";
+import { Artifact } from "@/lib/types";
 
 /** 任务完成后的交付报告弹窗 */
 export default function ResultModal() {
   const mission = useOfficeStore((s) => s.mission);
   const showResult = useOfficeStore((s) => s.showResult);
   const setShowResult = useOfficeStore((s) => s.setShowResult);
+  const artifactCache = useOfficeStore((s) => s.artifactCache);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!showResult || !mission || mission.status !== "done") return null;
 
-  const artifactCount = mission.tasks.reduce(
-    (n, t) => n + (t.artifacts?.length ?? 0),
-    0
+  const allArtifacts: Artifact[] = mission.tasks.flatMap(
+    (t) => t.artifacts ?? []
   );
+  const artifactCount = allArtifacts.length;
+
+  const handleDownloadAll = async () => {
+    if (downloading || !artifactCount) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      await downloadAllArtifacts(allArtifacts, artifactCache, mission.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "下载失败");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDownloadOne = async (artifact: Artifact) => {
+    if (downloading) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      await downloadArtifact(artifact, artifactCache);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "下载失败");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div
@@ -83,15 +115,15 @@ export default function ResultModal() {
                 {!!task.artifacts?.length && (
                   <div className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
                     {task.artifacts.map((artifact) => (
-                      <a
+                      <button
                         key={artifact.url}
-                        href={artifact.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-md border border-cyan-400/30 bg-cyan-950/40 px-2 py-0.5 text-[10px] text-cyan-300 transition-colors hover:bg-cyan-900/50"
+                        type="button"
+                        disabled={downloading}
+                        onClick={() => handleDownloadOne(artifact)}
+                        className="rounded-md border border-cyan-400/30 bg-cyan-950/40 px-2 py-0.5 text-[10px] text-cyan-300 transition-colors hover:bg-cyan-900/50 disabled:opacity-50"
                       >
                         📎 {artifact.name}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -101,25 +133,34 @@ export default function ResultModal() {
         </div>
 
         {/* 底部操作 */}
-        <div className="flex items-center justify-between gap-3 border-t border-white/10 px-6 py-3.5">
-          <p className="text-[11px] text-slate-500">
-            ✅ {mission.tasks.length} 个子任务全部完成 · 共 {artifactCount} 份交付文件
-          </p>
-          <div className="flex shrink-0 gap-2">
-            {artifactCount > 0 && (
-              <a
-                href={`/api/download/${mission.id}`}
-                className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-1.5 text-xs font-bold tracking-wider text-white transition-all hover:brightness-110"
+        <div className="border-t border-white/10 px-6 py-3.5">
+          {error && (
+            <p className="mb-2 text-[11px] leading-relaxed text-rose-300">
+              ⚠️ {error}
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] text-slate-500">
+              ✅ {mission.tasks.length} 个子任务全部完成 · 共 {artifactCount} 份交付文件
+            </p>
+            <div className="flex shrink-0 gap-2">
+              {artifactCount > 0 && (
+                <button
+                  type="button"
+                  disabled={downloading}
+                  onClick={handleDownloadAll}
+                  className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-1.5 text-xs font-bold tracking-wider text-white transition-all hover:brightness-110 disabled:opacity-60"
+                >
+                  {downloading ? "打包中…" : "⬇️ 一键下载全部"}
+                </button>
+              )}
+              <button
+                onClick={() => setShowResult(false)}
+                className="rounded-lg border border-white/15 px-4 py-1.5 text-xs font-bold tracking-wider text-slate-300 transition-colors hover:bg-white/10"
               >
-                ⬇️ 一键下载全部
-              </a>
-            )}
-            <button
-              onClick={() => setShowResult(false)}
-              className="rounded-lg border border-white/15 px-4 py-1.5 text-xs font-bold tracking-wider text-slate-300 transition-colors hover:bg-white/10"
-            >
-              收下成果
-            </button>
+                收下成果
+              </button>
+            </div>
           </div>
         </div>
       </div>

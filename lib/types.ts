@@ -8,6 +8,9 @@ export type SubTaskStatus = "pending" | "thinking" | "running" | "done";
 export interface Artifact {
   name: string;
   url: string;
+  /** 文件 base64（任务完成时随 API 返回，供浏览器端直接下载，避免 Vercel /tmp 丢失） */
+  dataBase64?: string;
+  mimeType?: string;
 }
 
 /** 项目经理拆解出的子任务（依赖图节点） */
