@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
+import { generatedDir } from "@/lib/server/paths";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function GET(
     return NextResponse.json({ error: "非法路径" }, { status: 400 });
   }
 
-  const dir = path.join(process.cwd(), "generated", mission);
+  const dir = path.join(generatedDir(), mission);
   let files: string[];
   try {
     files = await fs.readdir(dir);

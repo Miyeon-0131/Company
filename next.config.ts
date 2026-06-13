@@ -7,8 +7,20 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
-  // 这些包在服务端按原生 node_modules 方式加载，避免打包兼容问题
-  serverExternalPackages: ["xlsx", "pptxgenjs", "nodemailer", "docx"],
+  // 这些包在服务端按原生 node_modules 方式加载，避免 Vercel 打包后运行失败
+  serverExternalPackages: [
+    "xlsx",
+    "pptxgenjs",
+    "nodemailer",
+    "docx",
+    "pdf-lib",
+    "@pdf-lib/fontkit",
+    "jszip",
+  ],
+  // 不把本地测试产物打进 Serverless 函数，防止体积超限
+  outputFileTracingExcludes: {
+    "*": ["./generated/**/*"],
+  },
 };
 
 export default nextConfig;

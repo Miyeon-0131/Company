@@ -1,21 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import * as XLSX from "xlsx";
-import {
-  Document,
-  ExternalHyperlink,
-  HeadingLevel,
-  Packer,
-  Paragraph,
-  TextRun,
-} from "docx";
-import PptxGenJS from "pptxgenjs";
-import { PDFDocument, PDFFont, PDFString, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import nodemailer from "nodemailer";
+import type { PDFFont } from "pdf-lib";
 import { Artifact } from "@/lib/types";
 import { chatClaude, extractJsonObject } from "@/lib/server/llm";
 import { GmailAuth, sendGmail } from "@/lib/server/google";
+import { generatedDir } from "@/lib/server/paths";
 
 /**
  * Worker Agent 真实工具层（服务端执行）。
@@ -57,7 +46,7 @@ interface RepoHit {
   language: string;
 }
 
-const GEN_DIR = path.join(process.cwd(), "generated");
+const GEN_DIR = generatedDir();
 
 const topic = (prompt: string) =>
   prompt.length > 24 ? `${prompt.slice(0, 24)}…` : prompt;
@@ -248,6 +237,7 @@ async function buildAnalysisSheet(
 }
 
 async function buildExcel(ctx: ExecContext): Promise<ExecResult> {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   let rowCount = 0;
 
@@ -413,6 +403,15 @@ function buildFallbackReport(ctx: ExecContext): string {
 }
 
 async function writeReport(ctx: ExecContext): Promise<ExecResult> {
+  const {
+    Document,
+    ExternalHyperlink,
+    HeadingLevel,
+    Packer,
+    Paragraph,
+    TextRun,
+  } = await import("docx");
+
   let markdown: string;
   let mode: "real" | "mock" = "mock";
 
@@ -430,7 +429,7 @@ async function writeReport(ctx: ExecContext): Promise<ExecResult> {
     markdown = buildFallbackReport(ctx);
   }
 
-  const children: Paragraph[] = markdown.split("\n").map((line) => {
+  const children: InstanceType<typeof Paragraph>[] = markdown.split("\n").map((line) => {
     if (line.startsWith("# "))
       return new Paragraph({ text: line.slice(2), heading: HeadingLevel.HEADING_1 });
     if (line.startsWith("## "))
@@ -482,6 +481,7 @@ async function writeReport(ctx: ExecContext): Promise<ExecResult> {
 
 // ── PPT大师：真实生成 .pptx ───────────────────────
 async function buildSlides(ctx: ExecContext): Promise<ExecResult> {
+  const { default: PptxGenJS } = await import("pptxgenjs");
   const markdown = ctx.inputs.find((i) => typeof i.payload === "string")
     ?.payload as string | undefined;
 
@@ -749,6 +749,8 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 }
 
 async function exportPdf(ctx: ExecContext): Promise<ExecResult> {
+  const { PDFDocument, PDFString, rgb } = await import("pdf-lib");
+
   let markdown =
     (ctx.inputs.find((i) => typeof i.payload === "string")?.payload as string) ??
     [`# ${topic(ctx.prompt)} 交付汇总`, ...ctx.inputs.map((i) => `- ${i.summary}`)].join("\n");
@@ -776,6 +778,7 @@ async function exportPdf(ctx: ExecContext): Promise<ExecResult> {
   try {
     const fontBytes = await loadCJKFont();
     const pdf = await PDFDocument.create();
+    const fontkit = (await import("@pdf-lib/fontkit")).default;
     pdf.registerFontkit(fontkit);
     const font = await pdf.embedFont(fontBytes, { subset: true });
 
@@ -923,6 +926,7 @@ async function sendEmail(ctx: ExecContext): Promise<ExecResult> {
   const pass = process.env.SMTP_PASS;
   const to = process.env.MAIL_TO || user;
   if (host && user && pass && to) {
+    const nodemailer = (await import("nodemailer")).default;
     const transporter = nodemailer.createTransport({
       host,
       port,

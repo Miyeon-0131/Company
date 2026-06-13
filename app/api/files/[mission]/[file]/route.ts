@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
+import { generatedDir } from "@/lib/server/paths";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,7 @@ export async function GET(
     return NextResponse.json({ error: "非法路径" }, { status: 400 });
   }
 
-  const filePath = path.join(process.cwd(), "generated", mission, fileName);
+  const filePath = path.join(generatedDir(), mission, fileName);
   try {
     const buffer = await fs.readFile(filePath);
     const ext = path.extname(fileName).toLowerCase();

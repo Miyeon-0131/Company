@@ -140,7 +140,17 @@ async function executeTask(
         missionId,
       }),
     });
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      const text = await res.text();
+      throw new Error(
+        `API 返回非 JSON（HTTP ${res.status}）：${text.replace(/\s+/g, " ").slice(0, 100)}`
+      );
+    }
     result = await res.json();
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
   } catch (err) {
     result = {
       summary: `网络异常（${err instanceof Error ? err.message : err}），该环节已跳过`,
