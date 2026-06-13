@@ -24,6 +24,7 @@ interface EmployeeProps {
 export default function Employee({ config }: EmployeeProps) {
   const status = useOfficeStore((s) => s.statuses[config.id] ?? "idle");
   const overrideText = useOfficeStore((s) => s.statusTexts[config.id]);
+  const settingsOpen = useOfficeStore((s) => s.settingsOpen);
   const setActiveScreen = useOfficeStore((s) => s.setActiveScreen);
 
   const department = getDepartment(config.departmentId);
@@ -202,11 +203,13 @@ export default function Employee({ config }: EmployeeProps) {
 
         {/* 头顶状态气泡 + 名牌 */}
         <StatusBubble
+          employeeId={config.id}
           status={status}
           name={config.name}
           workingLabel={config.workingLabel}
           overrideText={overrideText}
           accentColor={department.color}
+          hideLabels={settingsOpen}
         />
       </group>
     </group>

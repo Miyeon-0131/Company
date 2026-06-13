@@ -1,6 +1,7 @@
 "use client";
 
 import { Html } from "@react-three/drei";
+import { useOfficeStore } from "@/lib/store";
 import { BigPlant, VendingMachine, WaterCooler } from "./Decorations";
 
 /** 咖啡机（带发光面板和小杯子） */
@@ -118,6 +119,8 @@ export default function BreakArea({
 }: {
   position: [number, number, number];
 }) {
+  const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+
   return (
     <group position={position}>
       {/* 区域地毯 */}
@@ -247,6 +250,7 @@ export default function BreakArea({
       <BigPlant position={[-3.0, 0, 6.2]} scale={0.85} />
 
       {/* 悬浮标牌 */}
+      {!settingsOpen && (
       <Html
         position={[0, 3.3, 0]}
         center
@@ -263,6 +267,7 @@ export default function BreakArea({
           </div>
         </div>
       </Html>
+      )}
     </group>
   );
 }

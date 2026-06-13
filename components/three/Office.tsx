@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { Group } from "three";
 import { DEPARTMENTS, EMPLOYEES } from "@/lib/employees";
+import { useOfficeStore } from "@/lib/store";
 import Employee from "./Employee";
 import MeetingRoom from "./MeetingRoom";
 import BreakArea from "./BreakArea";
@@ -19,6 +20,7 @@ const FLOOR_D = 16;
  */
 export default function Office() {
   const officeRef = useRef<Group>(null);
+  const settingsOpen = useOfficeStore((s) => s.settingsOpen);
 
   useFrame((state) => {
     if (!officeRef.current) return;
@@ -86,6 +88,7 @@ export default function Office() {
           </mesh>
 
           {/* 部门悬浮标牌 */}
+          {!settingsOpen && (
           <Html
             position={[dept.center[0], 3.1, dept.center[1]]}
             center
@@ -108,6 +111,7 @@ export default function Office() {
               </div>
             </div>
           </Html>
+          )}
         </group>
       ))}
 

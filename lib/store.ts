@@ -24,6 +24,8 @@ interface OfficeState {
   screens: Record<string, ScreenEntry[]>;
   /** 当前正在查看哪个员工的屏幕（null = 关闭面板） */
   activeScreen: string | null;
+  /** 设置面板是否打开（用于隐藏遮挡的 HUD） */
+  settingsOpen: boolean;
   /** 本次任务交付文件的浏览器缓存（url → 含 base64 的 Artifact） */
   artifactCache: Record<string, Artifact>;
 
@@ -45,6 +47,7 @@ interface OfficeState {
   ) => void;
   setActiveScreen: (employeeId: string | null) => void;
   setShowResult: (show: boolean) => void;
+  setSettingsOpen: (open: boolean) => void;
   cacheArtifacts: (artifacts: Artifact[] | undefined) => void;
   resetAll: () => void;
 }
@@ -61,6 +64,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   showResult: false,
   screens: {},
   activeScreen: null,
+  settingsOpen: false,
   artifactCache: {},
 
   setStatus: (employeeId, status, text) =>
@@ -161,6 +165,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
   setShowResult: (show) => set({ showResult: show }),
 
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
+
   cacheArtifacts: (artifacts) =>
     set((state) => {
       if (!artifacts?.length) return state;
@@ -179,5 +185,6 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       showResult: false,
       screens: {},
       artifactCache: {},
+      settingsOpen: false,
     }),
 }));

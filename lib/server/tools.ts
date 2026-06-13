@@ -5,6 +5,7 @@ import { Artifact } from "@/lib/types";
 import { chatClaude, extractJsonObject } from "@/lib/server/llm";
 import { GmailAuth, sendGmail } from "@/lib/server/google";
 import { generatedDir } from "@/lib/server/paths";
+import { addStyledSheet, workbookToBuffer } from "@/lib/server/excelStyle";
 
 /**
  * Worker Agent 真实工具层（服务端执行）。
@@ -264,30 +265,30 @@ async function buildAnalysisSheet(
 }
 
 async function buildExcel(ctx: ExecContext): Promise<ExecResult> {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.utils.book_new();
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "AI Agent Virtual Office";
   let rowCount = 0;
+  let sheetCount = 0;
 
-  // 1) Claude 智能分析表（放在第一个 Sheet，打开即见核心数据）
+  const addSheet = (name: string, rows: Record<string, unknown>[]) => {
+    if (!rows.length) return;
+    addStyledSheet(wb, name, rows);
+    sheetCount += 1;
+    rowCount += rows.length;
+  };
+
+  // 1) Claude 智能分析表
   const analysis = await buildAnalysisSheet(ctx);
   if (analysis) {
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(analysis.rows),
-      analysis.name
-    );
-    rowCount += analysis.rows.length;
+    addSheet(analysis.name, analysis.rows);
   }
 
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.json_to_sheet([
-      { 字段: "任务指令", 内容: ctx.prompt },
-      { 字段: "生成时间", 内容: new Date().toLocaleString("zh-CN") },
-      { 字段: "数据来源", 内容: `${ctx.inputs.length} 个上游 Agent` },
-    ]),
-    "任务信息"
-  );
+  addSheet("任务信息", [
+    { 字段: "任务指令", 内容: ctx.prompt },
+    { 字段: "生成时间", 内容: new Date().toLocaleString("zh-CN") },
+    { 字段: "数据来源", 内容: `${ctx.inputs.length} 个上游 Agent` },
+  ]);
 
   let searchIdx = 0;
   ctx.inputs.forEach((input) => {
@@ -314,47 +315,37 @@ async function buildExcel(ctx: ExecContext): Promise<ExecResult> {
         链接: h.url,
       }));
     } else {
-      return; // 非表格型数据（如报告正文）跳过
+      return;
     }
-    rowCount += rows.length;
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sheetName);
+    addSheet(sheetName, rows);
   });
 
-  // 关键词统计（来自 Python 工程师）
   const stats = findStats(ctx);
   if (stats) {
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(
-        stats.topKeywords.map((k, i) => ({
-          排名: i + 1,
-          关键词: k.word,
-          出现次数: k.count,
-        }))
-      ),
-      "关键词统计"
+    addSheet(
+      "关键词统计",
+      stats.topKeywords.map((k, i) => ({
+        排名: i + 1,
+        关键词: k.word,
+        出现次数: k.count,
+      }))
     );
   }
 
-  // 全部来源链接汇总
   const links = collectLinks(ctx);
   if (links.length) {
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(
-        links.map((l, i) => ({ 序号: i + 1, 标题: l.title, 链接: l.url }))
-      ),
-      "来源链接"
+    addSheet(
+      "来源链接",
+      links.map((l, i) => ({ 序号: i + 1, 标题: l.title, 链接: l.url }))
     );
-    rowCount += links.length;
   }
 
-  const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const buffer = await workbookToBuffer(wb);
   const artifact = await saveArtifact(ctx.missionId, "dataset.xlsx", buffer);
   return {
     summary: analysis
-      ? `已由 Claude 整理出「${analysis.name}」分析表，并真实生成 dataset.xlsx（${wb.SheetNames.length} 个 Sheet · ${rowCount} 行真实数据）`
-      : `已将上游情报清洗为结构化数据，真实生成 dataset.xlsx（${wb.SheetNames.length} 个 Sheet · ${rowCount} 行真实数据，含标题/摘要/链接）`,
+      ? `已由 Claude 整理出「${analysis.name}」分析表，并真实生成 dataset.xlsx（${sheetCount} 个 Sheet · ${rowCount} 行真实数据，含边框与自动列宽）`
+      : `已将上游情报清洗为结构化数据，真实生成 dataset.xlsx（${sheetCount} 个 Sheet · ${rowCount} 行真实数据，含边框与自动列宽）`,
     payload: { rowCount },
     artifacts: [artifact],
     mode: "real",

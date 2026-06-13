@@ -1,6 +1,7 @@
 "use client";
 
 import { Html } from "@react-three/drei";
+import { useOfficeStore } from "@/lib/store";
 
 /** 玻璃墙段（带上下金属框） */
 function GlassWall({
@@ -69,6 +70,8 @@ export default function MeetingRoom({
 }: {
   position: [number, number, number];
 }) {
+  const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+
   return (
     <group position={position}>
       {/* 区域地毯 */}
@@ -167,6 +170,7 @@ export default function MeetingRoom({
       </group>
 
       {/* 悬浮标牌 */}
+      {!settingsOpen && (
       <Html
         position={[0, 3.3, 0]}
         center
@@ -183,6 +187,7 @@ export default function MeetingRoom({
           </div>
         </div>
       </Html>
+      )}
     </group>
   );
 }

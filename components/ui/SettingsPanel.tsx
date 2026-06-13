@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Theme, useThemeStore } from "@/lib/theme";
+import { useOfficeStore } from "@/lib/store";
 
 interface MailStatus {
   configured: boolean;
@@ -28,7 +29,8 @@ const ENV_LABELS: { key: keyof EnvStatus; label: string }[] = [
 
 /** 设置入口：主题切换 + 邮箱 Google 登录授权 */
 export default function SettingsPanel() {
-  const [open, setOpen] = useState(false);
+  const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+  const setSettingsOpen = useOfficeStore((s) => s.setSettingsOpen);
   const [mail, setMail] = useState<MailStatus>({ configured: false, email: null });
   const [env, setEnv] = useState<EnvStatus | null>(null);
   const theme = useThemeStore((s) => s.theme);
@@ -52,7 +54,7 @@ export default function SettingsPanel() {
 
   useEffect(() => {
     refreshMail();
-  }, [refreshMail, open]);
+  }, [refreshMail, settingsOpen]);
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -67,19 +69,19 @@ export default function SettingsPanel() {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => setSettingsOpen(true)}
         className="pointer-events-auto mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-[11px] tracking-wide text-slate-300 backdrop-blur-md transition-colors hover:border-cyan-400/40 hover:text-cyan-300"
       >
         ⚙️ 设置
       </button>
 
-      {open && (
+      {settingsOpen && (
         <div
-          className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
+          className="pointer-events-auto fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md"
+          onClick={() => setSettingsOpen(false)}
         >
           <div
-            className="w-[min(380px,94vw)] overflow-hidden rounded-2xl border border-cyan-400/25 bg-slate-950/95 shadow-[0_0_50px_rgba(34,211,238,0.15)]"
+            className="w-[min(380px,94vw)] overflow-hidden rounded-2xl border border-cyan-400/25 bg-slate-950/98 shadow-[0_0_50px_rgba(34,211,238,0.15)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="border-b border-white/10 px-6 py-4">
@@ -175,7 +177,7 @@ export default function SettingsPanel() {
 
             <div className="flex justify-end border-t border-white/10 px-6 py-3.5">
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => setSettingsOpen(false)}
                 className="rounded-lg bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-1.5 text-xs font-bold tracking-wider text-white transition-all hover:brightness-110"
               >
                 完成

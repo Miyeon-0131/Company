@@ -1,17 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Html } from "@react-three/drei";
 import { AgentStatus } from "@/lib/types";
+import { getIdleChatter } from "@/lib/idleChatter";
 
 interface StatusBubbleProps {
+  employeeId: string;
   status: AgentStatus;
-  /** 职位名称，常驻显示 */
   name: string;
-  /** working 状态的自定义文案，例如 "🔍 正在谷歌搜索..." */
   workingLabel: string;
-  /** Task Manager 下发的覆盖文案 */
   overrideText?: string | null;
   accentColor: string;
+  hideLabels?: boolean;
 }
 
 const BUBBLE_STYLE: Record<
@@ -20,7 +21,7 @@ const BUBBLE_STYLE: Record<
 > = {
   idle: {
     text: "☕ 摸鱼中",
-    className: "bg-slate-800/80 text-slate-400 border-slate-600/40",
+    className: "bg-slate-800/90 text-slate-300 border-slate-500/50",
     showDots: false,
   },
   thinking: {
@@ -44,15 +45,36 @@ const BUBBLE_STYLE: Record<
 };
 
 export default function StatusBubble({
+  employeeId,
   status,
   name,
   workingLabel,
   overrideText,
   accentColor,
+  hideLabels,
 }: StatusBubbleProps) {
   const style = BUBBLE_STYLE[status];
+  const [idleTick, setIdleTick] = useState(0);
+
+  // 待机时每 9 秒换一句闲聊
+  useEffect(() => {
+    if (status !== "idle") return;
+    const id = setInterval(() => setIdleTick((t) => t + 1), 9000);
+    return () => clearInterval(id);
+  }, [status]);
+
+  if (hideLabels) return null;
+
+  const idleLine = getIdleChatter(employeeId, idleTick);
   const text =
-    overrideText ?? (status === "working" ? workingLabel : style.text);
+    overrideText ??
+    (status === "working"
+      ? workingLabel
+      : status === "idle"
+        ? idleLine
+        : style.text);
+
+  const isIdleChat = status === "idle" && !overrideText;
 
   return (
     <Html
@@ -62,25 +84,38 @@ export default function StatusBubble({
       zIndexRange={[30, 0]}
       style={{ pointerEvents: "none" }}
     >
-      <div className="flex select-none flex-col items-center gap-1 whitespace-nowrap">
-        {/* 状态气泡 */}
-        <div
-          className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur-sm transition-all duration-300 ${style.className} ${
-            status === "done" ? "animate-bounce" : ""
-          }`}
-        >
-          <span>{text}</span>
-          {style.showDots && (
-            <span className="flex gap-0.5">
-              <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
-              <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
-              <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
-            </span>
+      <div className="flex select-none flex-col items-center gap-1">
+        {/* 状态气泡 / 待机对话框 */}
+        <div className="relative flex flex-col items-center">
+          <div
+            className={`border px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition-all duration-500 ${
+              isIdleChat
+                ? "max-w-[210px] whitespace-normal text-left leading-relaxed rounded-2xl rounded-bl-sm bg-slate-800/95 text-slate-200 border-slate-500/55 shadow-lg"
+                : `whitespace-nowrap rounded-full ${style.className} ${
+                    status === "done" ? "animate-bounce" : ""
+                  }`
+            }`}
+          >
+            <span>{text}</span>
+            {style.showDots && (
+              <span className="ml-1.5 inline-flex gap-0.5 align-middle">
+                <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
+                <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
+                <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
+              </span>
+            )}
+          </div>
+          {/* 对话框小尾巴 */}
+          {isIdleChat && (
+            <div
+              className="absolute -bottom-1.5 left-3 h-2.5 w-2.5 rotate-45 border-b border-l border-slate-500/55 bg-slate-800/95"
+              aria-hidden
+            />
           )}
         </div>
         {/* 职位名牌 */}
         <div
-          className="rounded-md border border-white/10 bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 backdrop-blur-sm"
+          className="whitespace-nowrap rounded-md border border-white/10 bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 backdrop-blur-sm"
           style={{ borderBottomColor: accentColor, borderBottomWidth: 2 }}
         >
           {name}

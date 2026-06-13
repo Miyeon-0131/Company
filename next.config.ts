@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
   // 这些包在服务端按原生 node_modules 方式加载，避免 Vercel 打包后运行失败
   serverExternalPackages: [
     "xlsx",
+    "exceljs",
     "pptxgenjs",
     "nodemailer",
     "docx",

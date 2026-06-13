@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { DEPARTMENTS } from "@/lib/employees";
+import { useOfficeStore } from "@/lib/store";
 import CommandConsole from "@/components/ui/CommandConsole";
 import ResultModal from "@/components/ui/ResultModal";
 import SettingsPanel from "@/components/ui/SettingsPanel";
@@ -23,6 +24,8 @@ const OfficeScene = dynamic(() => import("@/components/three/OfficeScene"), {
 });
 
 export default function Home() {
+  const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+
   return (
     <main className="relative h-screen w-screen overflow-hidden">
       <OfficeScene />
@@ -45,8 +48,9 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── 右上：部门图例 ─────────────────────────── */}
+      {/* ── 右上：部门图例（设置打开时隐藏，避免遮挡） ── */}
       <aside className="pointer-events-none absolute right-5 top-5 z-10">
+        {!settingsOpen && (
         <div className="flex flex-col gap-1.5 rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 backdrop-blur-md">
           {DEPARTMENTS.map((dept) => (
             <div key={dept.id} className="flex items-center gap-2">
@@ -75,14 +79,15 @@ export default function Home() {
             </div>
           ))}
         </div>
+        )}
         <SettingsPanel />
       </aside>
 
-      {/* ── 左侧：员工工作屏幕（点击 3D 员工打开） ──── */}
-      <WorkScreenPanel />
+      {/* ── 左侧：员工工作屏幕 ──── */}
+      {!settingsOpen && <WorkScreenPanel />}
 
-      {/* ── 底部：CEO 指令终端 ─────────────────────── */}
-      <CommandConsole />
+      {/* ── 底部：CEO 指令终端（设置打开时隐藏） ── */}
+      {!settingsOpen && <CommandConsole />}
 
       {/* ── 任务完成后的交付报告弹窗 ────────────────── */}
       <ResultModal />
