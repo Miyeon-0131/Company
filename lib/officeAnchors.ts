@@ -1,4 +1,9 @@
 import { RestActivity } from "./types";
+import {
+  MEETING_LONG_SIDE_Z,
+  MEETING_SHORT_CHAIRS,
+  MEETING_SIDE_X,
+} from "./meetingLayout";
 
 export const MEETING_CENTER: [number, number, number] = [15.2, 0, 0];
 export const BREAK_CENTER: [number, number, number] = [-15.2, 0, 0];
@@ -60,16 +65,26 @@ export function approachPointBehind(anchor: WorldAnchor): WorldAnchor {
   };
 }
 
-/** 会议室 9 椅 + 1 旁听（每人椅背正后方） */
+/** 会议室 10 椅：长边各 4（等间距）+ 短边各 1 */
 export const MEETING_ANCHORS: WorldAnchor[] = [
-  ...[-2.0, -1.2, 0.4, 2.0].map((z) =>
-    behindMeetingChair(-1.5, z, -Math.PI / 2, Math.PI / 2)
+  ...MEETING_LONG_SIDE_Z.map((z) =>
+    behindMeetingChair(-MEETING_SIDE_X, z, -Math.PI / 2, Math.PI / 2)
   ),
-  ...[-2.0, -1.2, 0.4, 2.0].map((z) =>
-    behindMeetingChair(1.5, z, Math.PI / 2, -Math.PI / 2)
+  ...MEETING_LONG_SIDE_Z.map((z) =>
+    behindMeetingChair(MEETING_SIDE_X, z, Math.PI / 2, -Math.PI / 2)
   ),
-  behindMeetingChair(0, 3.4, 0, 0),
-  meetWorld(0, -2.35, Math.PI),
+  behindMeetingChair(
+    MEETING_SHORT_CHAIRS[0]!.x,
+    MEETING_SHORT_CHAIRS[0]!.z,
+    MEETING_SHORT_CHAIRS[0]!.rotation,
+    Math.PI
+  ),
+  behindMeetingChair(
+    MEETING_SHORT_CHAIRS[1]!.x,
+    MEETING_SHORT_CHAIRS[1]!.z,
+    MEETING_SHORT_CHAIRS[1]!.rotation,
+    0
+  ),
 ];
 
 /** 休息区：沙发/设备前方就位 */
