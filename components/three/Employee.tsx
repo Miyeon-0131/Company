@@ -154,9 +154,6 @@ export default function Employee({ config }: EmployeeProps) {
           break;
 
         case "focusing":
-          torsoLean = -0.12;
-          charForwardZ = -0.08;
-          headNodX = -0.05;
           leftArmRotX = -0.5 + Math.sin(t * 12) * 0.12;
           rightArmRotX = -0.5 + Math.sin(t * 12 + Math.PI) * 0.12;
           leftArmRotY = -0.2;

@@ -1,7 +1,7 @@
 /** 会议室椅子布局（局部坐标，原点在房间中心） */
 
-/** 长边椅离桌心距离（桌半宽 0.85，需留出坐姿+手臂空间） */
-export const MEETING_SIDE_X = 2.05;
+/** 长边椅离桌心距离（桌半宽 0.85 + 手臂前伸） */
+export const MEETING_SIDE_X = 2.35;
 
 /** 长边 4 椅，沿 z 等间距 0.9m */
 export const MEETING_LONG_SIDE_Z = [-0.95, -0.05, 0.85, 1.75] as const;

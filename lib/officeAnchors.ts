@@ -2,6 +2,7 @@ import { RestActivity } from "./types";
 import {
   backVector,
   facingFromDelta,
+  seatRootAt,
 } from "./characterFacing";
 import {
   MEETING_LONG_SIDE_Z,
@@ -43,10 +44,11 @@ function meetingFaceRotation(chairX: number, chairZ: number): number {
   return facingFromDelta(0 - chairX, 0.4 - chairZ);
 }
 
-/** 会议椅落座：root 在椅心（同工位），角色沿背部偏移坐到椅上 */
+/** 会议椅落座：椅心为身体落点，反算 root（同工位逻辑） */
 function meetSeatAtChair(chairX: number, chairZ: number): WorldAnchor {
   const rotation = meetingFaceRotation(chairX, chairZ);
-  return meetWorld(chairX, chairZ, rotation);
+  const root = seatRootAt(chairX, chairZ, rotation);
+  return meetWorld(root.x, root.z, root.rotation);
 }
 
 /** 椅后预就位：沿背部再远一点，目视前方走向落座点 */

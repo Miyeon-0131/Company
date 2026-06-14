@@ -22,16 +22,24 @@ export function facingFromDelta(dx: number, dz: number): number {
   return Math.atan2(dx, -dz);
 }
 
-/** 已知落座点（身体中心/椅心），反算 root 坐标 */
+/** 坐姿局部偏移 (0,0,SIT) 旋转后的世界位移 */
+export function sitOffsetVector(rotation: number): { x: number; z: number } {
+  return {
+    x: CHARACTER_SIT_OFFSET * Math.sin(rotation),
+    z: CHARACTER_SIT_OFFSET * Math.cos(rotation),
+  };
+}
+
+/** 已知身体落点（椅心），反算 root：visual = root + sitOffset */
 export function seatRootAt(
   seatX: number,
   seatZ: number,
   rotation: number
 ): { x: number; z: number; rotation: number } {
-  const back = backVector(rotation);
+  const off = sitOffsetVector(rotation);
   return {
-    x: seatX - back.x * CHARACTER_SIT_OFFSET,
-    z: seatZ - back.z * CHARACTER_SIT_OFFSET,
+    x: seatX - off.x,
+    z: seatZ - off.z,
     rotation,
   };
 }
