@@ -6,7 +6,6 @@ import {
   REST_ACTIVITY_LABELS,
   REST_ANCHORS,
 } from "./officeAnchors";
-import { durationToSeconds } from "./focusMode";
 import { resolveMovement } from "./officeCollision";
 import {
   AgentStatus,
@@ -44,6 +43,10 @@ const initialPoses = (): Record<string, EmployeePose> =>
 const initialStatuses = Object.fromEntries(
   EMPLOYEES.map((e) => [e.id, "idle" as AgentStatus])
 );
+
+function toDurationSeconds(parts: DurationParts): number {
+  return Math.max(0, parts.hours * 3600 + parts.minutes * 60 + parts.seconds);
+}
 
 interface OfficeState {
   statuses: Record<string, AgentStatus>;
@@ -297,8 +300,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   },
 
   startFocusSession: (focus, breakTime) => {
-    const focusSec = Math.max(1, durationToSeconds(focus));
-    const breakSec = Math.max(0, durationToSeconds(breakTime));
+    const focusSec = Math.max(1, toDurationSeconds(focus));
+    const breakSec = Math.max(0, toDurationSeconds(breakTime));
     set({
       officeMode: "focus",
       focusDurationSec: focusSec,
