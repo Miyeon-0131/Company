@@ -1,5 +1,10 @@
 import { RestActivity } from "./types";
 import {
+  backVector,
+  facingFromDelta,
+  seatRootAt,
+} from "./characterFacing";
+import {
   MEETING_LONG_SIDE_Z,
   MEETING_SHORT_CHAIRS,
   MEETING_SIDE_X,
@@ -21,8 +26,6 @@ export interface RestAnchor extends WorldAnchor {
 const MC = MEETING_CENTER[0];
 const BC = BREAK_CENTER[0];
 
-/** 与 Employee.tsx 中 character 组 local z 偏移一致 */
-const SIT_OFFSET = 0.85;
 /** 最后一段路径：先走到椅后更远一点再就位 */
 export const APPROACH_BEHIND = 0.85;
 
@@ -34,30 +37,25 @@ function breakWorld(localX: number, localZ: number, rotation: number): WorldAnch
   return { x: BC + localX, z: localZ, rotation };
 }
 
-/** 面朝会议桌中心 */
-function faceTowardMeetingTable(chairX: number, chairZ: number): number {
-  const dx = 0 - chairX;
-  const dz = 0.4 - chairZ;
-  return Math.atan2(dx, -dz);
+/** 会议椅：眼睛面朝桌面（长边侧向朝桌，短边朝桌心） */
+function meetingFaceRotation(chairX: number, chairZ: number): number {
+  if (chairX < -0.5) return Math.PI / 2;
+  if (chairX > 0.5) return -Math.PI / 2;
+  return facingFromDelta(0 - chairX, 0.4 - chairZ);
 }
 
-/**
- * 会议椅落座：root 坐标补偿坐姿偏移，使角色身体对齐椅心并面朝桌面。
- */
 function meetSeatAtChair(chairX: number, chairZ: number): WorldAnchor {
-  const rotation = faceTowardMeetingTable(chairX, chairZ);
-  const ox = SIT_OFFSET * Math.sin(rotation);
-  const oz = SIT_OFFSET * Math.cos(rotation);
-  return meetWorld(chairX - ox, chairZ - oz, rotation);
+  const rotation = meetingFaceRotation(chairX, chairZ);
+  const root = seatRootAt(chairX, chairZ, rotation);
+  return meetWorld(root.x, root.z, root.rotation);
 }
 
-/** 椅后预就位点（从该点再走到最终位，避免穿桌/穿椅） */
+/** 椅后预就位：沿背部再远一点，目视前方走向落座点 */
 export function approachPointBehind(anchor: WorldAnchor): WorldAnchor {
-  const fx = Math.sin(anchor.rotation);
-  const fz = -Math.cos(anchor.rotation);
+  const back = backVector(anchor.rotation);
   return {
-    x: anchor.x - fx * APPROACH_BEHIND,
-    z: anchor.z - fz * APPROACH_BEHIND,
+    x: anchor.x + back.x * APPROACH_BEHIND,
+    z: anchor.z + back.z * APPROACH_BEHIND,
     rotation: anchor.rotation,
   };
 }

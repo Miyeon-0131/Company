@@ -4,15 +4,15 @@ import {
   REST_ANCHORS,
   WorldAnchor,
 } from "./officeAnchors";
+import { facingFromDelta } from "./characterFacing";
 import { EmployeeConfig, MovementTarget } from "./types";
 
 const EMPLOYEE_COUNT = 10;
 const DEPART_STAGGER_SEC = 0.42;
 
-/** 默认朝 -Z；根据位移计算面朝方向 */
+/** 眼睛朝行进方向（局部 -Z 对齐位移向量） */
 export function walkFacing(dx: number, dz: number): number {
-  if (Math.hypot(dx, dz) < 0.001) return 0;
-  return Math.atan2(dx, -dz);
+  return facingFromDelta(dx, dz);
 }
 
 export function lerpAngle(cur: number, target: number, k: number): number {
