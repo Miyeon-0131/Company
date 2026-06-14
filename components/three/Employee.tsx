@@ -131,16 +131,16 @@ export default function Employee({ config }: EmployeeProps) {
 
         case "thinking":
           headTiltZ = Math.sin(t * 2.2) * 0.22;
-          headNodX = -0.12;
-          torsoLean = -0.1;
+          headNodX = -0.08;
+          torsoLean = -0.06;
           leftArmRotX = 0.85;
           leftArmRotY = -0.25;
           break;
 
         case "working":
-          torsoLean = -0.32;
-          charForwardZ = -0.22;
-          headNodX = -0.1;
+          torsoLean = -0.2;
+          charForwardZ = -0.14;
+          headNodX = -0.06;
           leftArmRotX = -0.62 + Math.sin(t * 16) * 0.22;
           rightArmRotX = -0.62 + Math.sin(t * 16 + Math.PI) * 0.22;
           leftArmRotY = -0.32;
@@ -157,9 +157,9 @@ export default function Employee({ config }: EmployeeProps) {
           break;
 
         case "focusing":
-          torsoLean = -0.18;
-          charForwardZ = -0.12;
-          headNodX = -0.08;
+          torsoLean = -0.12;
+          charForwardZ = -0.08;
+          headNodX = -0.05;
           leftArmRotX = -0.5 + Math.sin(t * 12) * 0.12;
           rightArmRotX = -0.5 + Math.sin(t * 12 + Math.PI) * 0.12;
           leftArmRotY = -0.2;
