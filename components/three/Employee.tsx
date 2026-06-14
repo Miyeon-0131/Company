@@ -6,6 +6,7 @@ import { Group } from "three";
 import { EmployeeConfig } from "@/lib/types";
 import { useOfficeStore } from "@/lib/store";
 import { getDepartment } from "@/lib/employees";
+import { lerpAngle } from "@/lib/movement";
 import StatusBubble from "./StatusBubble";
 
 interface EmployeeProps {
@@ -64,9 +65,7 @@ export default function Employee({ config }: EmployeeProps) {
     )
       return;
 
-    // 平滑转向目标朝向
-    const rotDiff = worldRot - root.rotation.y;
-    root.rotation.y += rotDiff * 0.12;
+    root.rotation.y = lerpAngle(root.rotation.y, worldRot, 0.18);
 
     const isWalking = status === "walking" || !!hasTarget;
     const isStanding = isWalking || (status === "resting" && restActivity !== "sofa");

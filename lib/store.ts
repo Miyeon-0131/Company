@@ -3,10 +3,16 @@ import { IDLE_ACTIVITY_LABELS } from "./idleActivity";
 import { IdleChatterTurn } from "./idleChatter";
 import {
   MEETING_ANCHORS,
-  REST_ACTIVITY_LABELS,
   REST_ANCHORS,
 } from "./officeAnchors";
-import { resolveMovement } from "./officeCollision";
+import {
+  buildBreakPath,
+  buildDeskPathFrom,
+  buildMeetingPath,
+  lerpAngle,
+  walkFacing,
+} from "./movement";
+import { resolveMovement, separateFromOthers } from "./officeCollision";
 import {
   AgentStatus,
   Artifact,
@@ -53,6 +59,7 @@ interface OfficeState {
   statusTexts: Record<string, string | null>;
   employeePoses: Record<string, EmployeePose>;
   movementTargets: Record<string, MovementTarget | null>;
+  movementQueues: Record<string, MovementTarget[]>;
   restActivities: Record<string, RestActivity | null>;
   officeMode: OfficeMode;
   modeRemainingSec: number;
@@ -103,11 +110,23 @@ interface OfficeState {
   resetAll: () => void;
 }
 
+function assignMovementChain(
+  targets: Record<string, MovementTarget | null>,
+  queues: Record<string, MovementTarget[]>,
+  employeeId: string,
+  chain: MovementTarget[]
+) {
+  if (!chain.length) return;
+  targets[employeeId] = chain[0]!;
+  queues[employeeId] = chain.slice(1);
+}
+
 export const useOfficeStore = create<OfficeState>((set, get) => ({
   statuses: { ...initialStatuses },
   statusTexts: {},
   employeePoses: initialPoses(),
   movementTargets: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
+  movementQueues: Object.fromEntries(EMPLOYEES.map((e) => [e.id, []])),
   restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
   officeMode: "normal",
   modeRemainingSec: 0,
@@ -176,6 +195,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     const nextStatuses = { ...state.statuses };
     const nextTexts = { ...state.statusTexts };
     const nextTargets = { ...state.movementTargets };
+    const nextQueues = { ...state.movementQueues };
     const nextRest = { ...state.restActivities };
 
     for (const emp of EMPLOYEES) {
@@ -188,6 +208,16 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       const dist = Math.hypot(dx, dz);
 
       if (dist <= ARRIVE_DIST) {
+        const queue = nextQueues[emp.id] ?? [];
+        if (queue.length > 0) {
+          nextTargets[emp.id] = queue[0]!;
+          nextQueues[emp.id] = queue.slice(1);
+          nextStatuses[emp.id] = "walking";
+          nextTexts[emp.id] = queue[0]!.text ?? "🚶 赶路中…";
+          changed = true;
+          continue;
+        }
+
         nextPoses[emp.id] = {
           x: target.x,
           z: target.z,
@@ -196,6 +226,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
         nextStatuses[emp.id] = target.finalStatus;
         nextTexts[emp.id] = target.text ?? null;
         nextTargets[emp.id] = null;
+        nextQueues[emp.id] = [];
         nextRest[emp.id] = target.restActivity ?? null;
         changed = true;
         continue;
@@ -205,16 +236,20 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       const ratio = Math.min(1, step / dist);
       const rawX = pose.x + dx * ratio;
       const rawZ = pose.z + dz * ratio;
-      const resolved = resolveMovement(pose.x, pose.z, rawX, rawZ);
-      const face = Math.atan2(dx, dz);
+      let resolved = resolveMovement(pose.x, pose.z, rawX, rawZ);
+      resolved = separateFromOthers(emp.id, resolved.x, resolved.z, nextPoses);
+      const face = walkFacing(
+        resolved.x - pose.x || dx,
+        resolved.z - pose.z || dz
+      );
       nextPoses[emp.id] = {
         x: resolved.x,
         z: resolved.z,
-        rotation: pose.rotation + (face - pose.rotation) * 0.15,
+        rotation: lerpAngle(pose.rotation, face, 0.22),
       };
       if (nextStatuses[emp.id] !== "walking") {
         nextStatuses[emp.id] = "walking";
-        nextTexts[emp.id] = "🚶 赶路中…";
+        nextTexts[emp.id] = target.text ?? "🚶 赶路中…";
       }
       changed = true;
     }
@@ -225,6 +260,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
         statuses: nextStatuses,
         statusTexts: nextTexts,
         movementTargets: nextTargets,
+        movementQueues: nextQueues,
         restActivities: nextRest,
       });
     }
@@ -233,19 +269,20 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   dispatchAllToMeeting: () => {
     const s = get();
     s.setIdleChatter(null);
-    const targets: Record<string, MovementTarget | null> = {};
+    const targets = { ...s.movementTargets };
+    const queues = { ...s.movementQueues };
     EMPLOYEES.forEach((emp, i) => {
       const anchor = MEETING_ANCHORS[i % MEETING_ANCHORS.length]!;
-      targets[emp.id] = {
-        x: anchor.x,
-        z: anchor.z,
-        rotation: anchor.rotation,
-        finalStatus: "focusing",
-        text: "🎯 专注会议中",
-      };
+      assignMovementChain(
+        targets,
+        queues,
+        emp.id,
+        buildMeetingPath(emp, i, anchor)
+      );
     });
     set({
-      movementTargets: { ...s.movementTargets, ...targets },
+      movementTargets: targets,
+      movementQueues: queues,
       restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
     });
     EMPLOYEES.forEach((e) => s.setStatus(e.id, "walking", "🚶 去会议室…"));
@@ -255,38 +292,33 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   dispatchAllToBreak: () => {
     const s = get();
     s.setIdleChatter(null);
-    const targets: Record<string, MovementTarget | null> = {};
+    const targets = { ...s.movementTargets };
+    const queues = { ...s.movementQueues };
     EMPLOYEES.forEach((emp, i) => {
       const anchor = REST_ANCHORS[i % REST_ANCHORS.length]!;
-      targets[emp.id] = {
-        x: anchor.x,
-        z: anchor.z,
-        rotation: anchor.rotation,
-        finalStatus: "resting",
-        restActivity: anchor.activity,
-        text: REST_ACTIVITY_LABELS[anchor.activity],
-      };
+      assignMovementChain(targets, queues, emp.id, buildBreakPath(emp, i, anchor));
     });
-    set({
-      movementTargets: { ...s.movementTargets, ...targets },
-    });
+    set({ movementTargets: targets, movementQueues: queues });
     EMPLOYEES.forEach((e) => s.setStatus(e.id, "walking", "🚶 去休息区…"));
     s.addLog("系统", "专注结束，全员前往休息区", "system");
   },
 
   returnAllToDesks: () => {
     const s = get();
-    const targets: Record<string, MovementTarget | null> = {};
-    EMPLOYEES.forEach((emp) => {
-      targets[emp.id] = {
-        x: emp.position[0],
-        z: emp.position[2],
-        rotation: emp.rotation,
-        finalStatus: "idle",
-      };
+    const targets = { ...s.movementTargets };
+    const queues = { ...s.movementQueues };
+    EMPLOYEES.forEach((emp, i) => {
+      const pose = s.employeePoses[emp.id]!;
+      assignMovementChain(
+        targets,
+        queues,
+        emp.id,
+        buildDeskPathFrom(emp, i, pose.x, pose.z)
+      );
     });
     set({
-      movementTargets: { ...s.movementTargets, ...targets },
+      movementTargets: targets,
+      movementQueues: queues,
       restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
       officeMode: "normal",
       modeRemainingSec: 0,
