@@ -138,9 +138,6 @@ export default function Employee({ config }: EmployeeProps) {
           break;
 
         case "working":
-          torsoLean = -0.2;
-          charForwardZ = -0.14;
-          headNodX = -0.06;
           leftArmRotX = -0.62 + Math.sin(t * 16) * 0.22;
           rightArmRotX = -0.62 + Math.sin(t * 16 + Math.PI) * 0.22;
           leftArmRotY = -0.32;
