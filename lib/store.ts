@@ -82,9 +82,9 @@ interface OfficeState {
   setMovementTarget: (employeeId: string, target: MovementTarget | null) => void;
   tickMovement: (dt: number) => void;
 
-  startFocusSession: (focus: DurationParts, breakTime: DurationParts) => void;
+  startFocusSession: (focus: DurationParts) => void;
+  startBreakSession: (breakTime: DurationParts) => void;
   stopOfficeMode: () => void;
-  beginBreakPhase: () => void;
   tickModeTimer: () => void;
   dispatchAllToMeeting: () => void;
   dispatchAllToBreak: () => void;
@@ -294,7 +294,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     });
     set({ movementTargets: targets, movementQueues: queues });
     EMPLOYEES.forEach((e) => s.setStatus(e.id, "walking", "🚶 去休息区…"));
-    s.addLog("系统", "专注结束，全员前往休息区", "system");
+    s.addLog("系统", "全员前往休息区", "system");
   },
 
   returnAllToDesks: () => {
@@ -325,32 +325,35 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     s.addLog("系统", "全员返回各自工位", "system");
   },
 
-  startFocusSession: (focus, breakTime) => {
+  startFocusSession: (focus) => {
     const focusSec = Math.max(1, toDurationSeconds(focus));
-    const breakSec = Math.max(0, toDurationSeconds(breakTime));
     set({
       officeMode: "focus",
       focusDurationSec: focusSec,
-      breakDurationSec: breakSec,
       modeRemainingSec: focusSec,
     });
     get().dispatchAllToMeeting();
   },
 
-  beginBreakPhase: () => {
-    const breakSec = get().breakDurationSec;
-    if (breakSec <= 0) {
-      get().returnAllToDesks();
-      return;
-    }
-    set({ officeMode: "break", modeRemainingSec: breakSec });
+  startBreakSession: (breakTime) => {
+    const breakSec = Math.max(1, toDurationSeconds(breakTime));
+    set({
+      officeMode: "break",
+      breakDurationSec: breakSec,
+      modeRemainingSec: breakSec,
+    });
     get().dispatchAllToBreak();
   },
 
   stopOfficeMode: () => {
     if (get().officeMode === "normal") return;
+    const mode = get().officeMode;
     get().returnAllToDesks();
-    get().addLog("系统", "专注/休息模式已手动停止", "system");
+    get().addLog(
+      "系统",
+      mode === "focus" ? "专注模式已结束" : "休息模式已结束",
+      "system"
+    );
   },
 
   tickModeTimer: () => {
@@ -361,12 +364,13 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       set({ modeRemainingSec: next });
       return;
     }
-    if (s.officeMode === "focus") {
-      get().beginBreakPhase();
-    } else {
-      get().returnAllToDesks();
-      get().addLog("系统", "休息结束，回到工位摸鱼", "system");
-    }
+    const mode = s.officeMode;
+    get().returnAllToDesks();
+    get().addLog(
+      "系统",
+      mode === "focus" ? "专注时间结束，回到工位" : "休息时间结束，回到工位",
+      "system"
+    );
   },
 
   startMission: (prompt) =>

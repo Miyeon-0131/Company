@@ -2,8 +2,9 @@
 
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Stars } from "@react-three/drei";
+import { Stars } from "@react-three/drei";
 import Office from "./Office";
+import ModeCameraController from "./ModeCameraController";
 import { SCENE_THEME, useThemeStore } from "@/lib/theme";
 
 /**
@@ -48,17 +49,7 @@ export default function OfficeScene() {
         <Office />
       </Suspense>
 
-      <OrbitControls
-        target={[0, 0.5, 0]}
-        enableDamping
-        dampingFactor={0.08}
-        enablePan={false}
-        minDistance={12}
-        maxDistance={48}
-        // 限制俯仰角范围，始终保持等距俯视观感
-        minPolarAngle={Math.PI / 5}
-        maxPolarAngle={Math.PI / 2.6}
-      />
+      <ModeCameraController />
     </Canvas>
   );
 }

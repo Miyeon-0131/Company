@@ -15,11 +15,13 @@ function DurationInput({
   value,
   onChange,
   accent,
+  disabled,
 }: {
   label: string;
   value: DurationParts;
   onChange: (v: DurationParts) => void;
   accent: string;
+  disabled?: boolean;
 }) {
   const fields: { key: keyof DurationParts; unit: string; max: number }[] = [
     { key: "hours", unit: "时", max: 23 },
@@ -39,12 +41,13 @@ function DurationInput({
               type="number"
               min={0}
               max={max}
+              disabled={disabled}
               value={value[key]}
               onChange={(e) => {
                 const n = Math.min(max, Math.max(0, Number(e.target.value) || 0));
                 onChange({ ...value, [key]: n });
               }}
-              className="w-12 rounded-md border border-white/10 bg-slate-900/80 px-1.5 py-1 text-center text-sm text-white outline-none focus:border-cyan-400/50"
+              className="w-12 rounded-md border border-white/10 bg-slate-900/80 px-1.5 py-1 text-center text-sm text-white outline-none focus:border-cyan-400/50 disabled:opacity-40"
               style={{ borderBottomColor: accent, borderBottomWidth: 2 }}
             />
             <span className="text-[9px] text-slate-500">{unit}</span>
@@ -60,6 +63,7 @@ export default function FocusModePanel() {
   const officeMode = useOfficeStore((s) => s.officeMode);
   const modeRemainingSec = useOfficeStore((s) => s.modeRemainingSec);
   const startFocusSession = useOfficeStore((s) => s.startFocusSession);
+  const startBreakSession = useOfficeStore((s) => s.startBreakSession);
   const stopOfficeMode = useOfficeStore((s) => s.stopOfficeMode);
 
   const [focusDur, setFocusDur] = useState(DEFAULT_FOCUS_DURATION);
@@ -70,7 +74,16 @@ export default function FocusModePanel() {
 
   const active = officeMode !== "normal";
   const focusSec = durationToSeconds(focusDur);
-  const canStart = focusSec > 0;
+  const breakSec = durationToSeconds(breakDur);
+  const canStartFocus = focusSec > 0;
+  const canStartBreak = breakSec > 0;
+
+  const headerLabel =
+    officeMode === "focus"
+      ? "🎯 专注中"
+      : officeMode === "break"
+        ? "☕ 休息中"
+        : "专注 · 休息";
 
   return (
     <div className="pointer-events-auto absolute left-5 top-28 z-10 w-56">
@@ -79,17 +92,19 @@ export default function FocusModePanel() {
         onClick={() => setOpen((v) => !v)}
         className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left backdrop-blur-md transition-colors ${
           active
-            ? "border-sky-400/50 bg-sky-950/70"
+            ? officeMode === "focus"
+              ? "border-sky-400/50 bg-sky-950/70"
+              : "border-rose-400/50 bg-rose-950/70"
             : "border-white/10 bg-slate-950/60 hover:bg-slate-900/70"
         }`}
       >
         <div>
-          <div className="text-xs font-bold tracking-wide text-sky-300">
-            {active
-              ? officeMode === "focus"
-                ? "🎯 专注中"
-                : "☕ 休息中"
-              : "会议室 · 专注模式"}
+          <div
+            className={`text-xs font-bold tracking-wide ${
+              officeMode === "break" ? "text-rose-300" : "text-sky-300"
+            }`}
+          >
+            {headerLabel}
           </div>
           {active && (
             <div className="mt-0.5 font-mono text-sm text-white/90">
@@ -107,12 +122,14 @@ export default function FocusModePanel() {
             value={focusDur}
             onChange={setFocusDur}
             accent="#38bdf8"
+            disabled={active}
           />
           <DurationInput
             label="休息时长"
             value={breakDur}
             onChange={setBreakDur}
             accent="#fb7185"
+            disabled={active}
           />
 
           {active ? (
@@ -121,24 +138,37 @@ export default function FocusModePanel() {
               onClick={stopOfficeMode}
               className="w-full rounded-lg border border-rose-400/40 bg-rose-950/50 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-900/60"
             >
-              停止专注 / 休息
+              {officeMode === "focus" ? "结束专注" : "结束休息"}
             </button>
           ) : (
-            <button
-              type="button"
-              disabled={!canStart}
-              onClick={() => {
-                startFocusSession(focusDur, breakDur);
-                setOpen(false);
-              }}
-              className="w-full rounded-lg border border-sky-400/40 bg-sky-950/50 py-2 text-xs font-semibold text-sky-200 transition hover:bg-sky-900/60 disabled:opacity-40"
-            >
-              开始专注
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={!canStartFocus}
+                onClick={() => {
+                  startFocusSession(focusDur);
+                  setOpen(false);
+                }}
+                className="w-full rounded-lg border border-sky-400/40 bg-sky-950/50 py-2 text-xs font-semibold text-sky-200 transition hover:bg-sky-900/60 disabled:opacity-40"
+              >
+                开始专注
+              </button>
+              <button
+                type="button"
+                disabled={!canStartBreak}
+                onClick={() => {
+                  startBreakSession(breakDur);
+                  setOpen(false);
+                }}
+                className="w-full rounded-lg border border-rose-400/40 bg-rose-950/50 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-900/60 disabled:opacity-40"
+              >
+                开始休息
+              </button>
+            </div>
           )}
 
           <p className="text-[9px] leading-relaxed text-slate-500">
-            专注时全员进会议室；结束后去休息区；可随时停止。老板下指令时全员回工位。
+            专注与休息可独立开启；镜头会锁定并环绕对应区域，结束模式后恢复自由视角。老板下指令时全员回工位。
           </p>
         </div>
       )}
