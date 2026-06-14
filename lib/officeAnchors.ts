@@ -39,11 +39,12 @@ function behindMeetingChair(
   chairRot: number,
   faceRot: number
 ): WorldAnchor {
+  // 椅背网格在局部 +Z；旋转后 (sin, cos) 即靠背朝向，沿该方向偏移才是「椅背后方」
   const backX = Math.sin(chairRot);
   const backZ = Math.cos(chairRot);
   return meetWorld(
-    chairX - backX * BEHIND_CHAIR,
-    chairZ - backZ * BEHIND_CHAIR,
+    chairX + backX * BEHIND_CHAIR,
+    chairZ + backZ * BEHIND_CHAIR,
     faceRot
   );
 }
