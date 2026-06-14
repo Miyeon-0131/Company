@@ -12,7 +12,6 @@ import {
   lerpAngle,
   walkFacing,
 } from "./movement";
-import { resolveMovement, separateFromOthers } from "./officeCollision";
 import {
   AgentStatus,
   Artifact,
@@ -234,17 +233,12 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
       const step = WALK_SPEED * dt;
       const ratio = Math.min(1, step / dist);
-      const rawX = pose.x + dx * ratio;
-      const rawZ = pose.z + dz * ratio;
-      let resolved = resolveMovement(pose.x, pose.z, rawX, rawZ);
-      resolved = separateFromOthers(emp.id, resolved.x, resolved.z, nextPoses);
-      const face = walkFacing(
-        resolved.x - pose.x || dx,
-        resolved.z - pose.z || dz
-      );
+      const nextX = pose.x + dx * ratio;
+      const nextZ = pose.z + dz * ratio;
+      const face = walkFacing(nextX - pose.x || dx, nextZ - pose.z || dz);
       nextPoses[emp.id] = {
-        x: resolved.x,
-        z: resolved.z,
+        x: nextX,
+        z: nextZ,
         rotation: lerpAngle(pose.rotation, face, 0.22),
       };
       if (nextStatuses[emp.id] !== "walking") {
