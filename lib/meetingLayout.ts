@@ -1,14 +1,15 @@
 /** 会议室椅子布局（局部坐标，原点在房间中心） */
 
-export const MEETING_SIDE_X = 1.5;
+/** 长边椅离桌心距离（桌半宽 0.85，需留出坐姿+手臂空间） */
+export const MEETING_SIDE_X = 2.05;
 
 /** 长边 4 椅，沿 z 等间距 0.9m */
 export const MEETING_LONG_SIDE_Z = [-0.95, -0.05, 0.85, 1.75] as const;
 
-/** 短边各 1 椅：北端 / 南端 */
+/** 短边各 1 椅：北端 / 南端（略离桌端，避免坐姿穿桌） */
 export const MEETING_SHORT_CHAIRS = [
-  { x: 0, z: -2.5, rotation: Math.PI },
-  { x: 0, z: 3.3, rotation: 0 },
+  { x: 0, z: -2.65, rotation: Math.PI },
+  { x: 0, z: 3.45, rotation: 0 },
 ] as const;
 
 export type MeetingChairSpec = {
