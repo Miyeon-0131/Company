@@ -7,6 +7,7 @@ import { Group } from "three";
 import { DEPARTMENTS, EMPLOYEES } from "@/lib/employees";
 import { useOfficeStore } from "@/lib/store";
 import Employee from "./Employee";
+import Workstation from "./Workstation";
 import MeetingRoom from "./MeetingRoom";
 import BreakArea from "./BreakArea";
 import { BigPlant, Printer } from "./Decorations";
@@ -115,7 +116,12 @@ export default function Office() {
         </group>
       ))}
 
-      {/* 10 个员工工位 */}
+      {/* 10 个固定工位（电脑不随员工离开而消失） */}
+      {EMPLOYEES.map((employee) => (
+        <Workstation key={`ws-${employee.id}`} config={employee} />
+      ))}
+
+      {/* 10 个员工角色（可移动） */}
       {EMPLOYEES.map((employee) => (
         <Employee key={employee.id} config={employee} />
       ))}

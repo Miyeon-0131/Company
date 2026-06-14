@@ -62,7 +62,7 @@ function Chair({
 }
 
 /**
- * 玻璃会议室：长桌 + 六把椅子 + 主位 + 数据大屏。
+ * 玻璃会议室：长桌 + 九把椅子 + 数据大屏。
  * 局部坐标系以房间中心为原点，footprint 约 7(x) × 11(z)。
  */
 export default function MeetingRoom({
@@ -119,11 +119,11 @@ export default function MeetingRoom({
         <meshStandardMaterial color="#e2e8f0" flatShading />
       </mesh>
 
-      {/* 两侧椅子 × 6 + 主位 × 1 */}
-      {[-1.2, 0.4, 2.0].map((z) => (
+      {/* 两侧椅子 × 8 + 主位 × 1（共 9 椅） */}
+      {[-2.0, -1.2, 0.4, 2.0].map((z) => (
         <Chair key={`l${z}`} position={[-1.5, 0, z]} rotation={-Math.PI / 2} />
       ))}
-      {[-1.2, 0.4, 2.0].map((z) => (
+      {[-2.0, -1.2, 0.4, 2.0].map((z) => (
         <Chair key={`r${z}`} position={[1.5, 0, z]} rotation={Math.PI / 2} />
       ))}
       <Chair position={[0, 0, 3.4]} rotation={0} />

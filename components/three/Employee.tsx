@@ -6,20 +6,10 @@ import { Group } from "three";
 import { EmployeeConfig } from "@/lib/types";
 import { useOfficeStore } from "@/lib/store";
 import { getDepartment } from "@/lib/employees";
-import Desk from "./Desk";
 import StatusBubble from "./StatusBubble";
 
 interface EmployeeProps {
   config: EmployeeConfig;
-}
-
-function isAtDesk(
-  x: number,
-  z: number,
-  deskX: number,
-  deskZ: number
-): boolean {
-  return Math.hypot(x - deskX, z - deskZ) < 0.45;
 }
 
 export default function Employee({ config }: EmployeeProps) {
@@ -36,9 +26,6 @@ export default function Employee({ config }: EmployeeProps) {
   const worldX = pose?.x ?? config.position[0];
   const worldZ = pose?.z ?? config.position[2];
   const worldRot = pose?.rotation ?? config.rotation;
-  const atDesk =
-    !hasTarget &&
-    isAtDesk(worldX, worldZ, config.position[0], config.position[2]);
 
   const rootRef = useRef<Group>(null);
   const characterRef = useRef<Group>(null);
@@ -253,14 +240,9 @@ export default function Employee({ config }: EmployeeProps) {
   };
 
   const charYOffset = 0;
-  const showDesk = atDesk;
 
   return (
     <group ref={rootRef} position={[worldX, 0, worldZ]} rotation={[0, worldRot, 0]}>
-      {showDesk && (
-        <Desk working={status === "working"} accentColor={department.color} />
-      )}
-
       <group
         ref={characterRef}
         position={[0, charYOffset, 0.85]}

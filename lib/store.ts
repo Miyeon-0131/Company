@@ -7,6 +7,7 @@ import {
   REST_ANCHORS,
 } from "./officeAnchors";
 import { durationToSeconds } from "./focusMode";
+import { resolveMovement } from "./officeCollision";
 import {
   AgentStatus,
   Artifact,
@@ -199,10 +200,13 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
       const step = WALK_SPEED * dt;
       const ratio = Math.min(1, step / dist);
+      const rawX = pose.x + dx * ratio;
+      const rawZ = pose.z + dz * ratio;
+      const resolved = resolveMovement(pose.x, pose.z, rawX, rawZ);
       const face = Math.atan2(dx, dz);
       nextPoses[emp.id] = {
-        x: pose.x + dx * ratio,
-        z: pose.z + dz * ratio,
+        x: resolved.x,
+        z: resolved.z,
         rotation: pose.rotation + (face - pose.rotation) * 0.15,
       };
       if (nextStatuses[emp.id] !== "walking") {

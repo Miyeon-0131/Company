@@ -13,32 +13,40 @@ export interface RestAnchor extends WorldAnchor {
   activity: RestActivity;
 }
 
-/** 会议室座位（7 椅 + 3 站立位） */
+const MC = MEETING_CENTER[0];
+const BC = BREAK_CENTER[0];
+
+/** 会议室局部坐标 → 员工站立/落座点（相对椅子朝外偏移，避免穿模） */
+function meetSeat(
+  localX: number,
+  localZ: number,
+  rotation: number
+): WorldAnchor {
+  return { x: MC + localX, z: localZ, rotation };
+}
+
+/**
+ * 会议室座位：4+4 侧椅 + 主位 + 旁听（10 人）
+ */
 export const MEETING_ANCHORS: WorldAnchor[] = [
-  { x: 13.7, z: -1.2, rotation: -Math.PI / 2 },
-  { x: 13.7, z: 0.4, rotation: -Math.PI / 2 },
-  { x: 13.7, z: 2.0, rotation: -Math.PI / 2 },
-  { x: 16.7, z: -1.2, rotation: Math.PI / 2 },
-  { x: 16.7, z: 0.4, rotation: Math.PI / 2 },
-  { x: 16.7, z: 2.0, rotation: Math.PI / 2 },
-  { x: 15.2, z: 3.4, rotation: Math.PI },
-  { x: 12.4, z: -3.0, rotation: 0 },
-  { x: 15.2, z: -3.0, rotation: 0 },
-  { x: 18.0, z: -3.0, rotation: 0 },
+  ...[-2.0, -1.2, 0.4, 2.0].map((z) => meetSeat(-2.05, z, -Math.PI / 2)),
+  ...[-2.0, -1.2, 0.4, 2.0].map((z) => meetSeat(2.05, z, Math.PI / 2)),
+  meetSeat(0, 3.95, 0),
+  meetSeat(0, -2.35, 0),
 ];
 
-/** 休息区锚点：沙发、咖啡机、售货机、饮水机等 */
+/** 休息区锚点（站在家具前方，不嵌入模型） */
 export const REST_ANCHORS: RestAnchor[] = [
-  { x: -14.8, z: 4.9, rotation: 0, activity: "sofa" },
-  { x: -15.8, z: 2.4, rotation: Math.PI, activity: "sofa" },
-  { x: -13.8, z: 2.4, rotation: Math.PI, activity: "sofa" },
-  { x: -18.1, z: -3.5, rotation: Math.PI / 2, activity: "coffee" },
-  { x: -15.9, z: -6.2, rotation: 0, activity: "vending" },
-  { x: -14.6, z: -6.2, rotation: 0, activity: "vending" },
-  { x: -18.1, z: 2.6, rotation: Math.PI / 2, activity: "water" },
-  { x: -18.1, z: 0.8, rotation: Math.PI / 2, activity: "microwave" },
-  { x: -14.8, z: 3.2, rotation: 0, activity: "lounge" },
-  { x: -12.9, z: 4.8, rotation: -Math.PI / 4, activity: "lounge" },
+  { x: BC + 0.35, z: 4.75, rotation: 0, activity: "sofa" },
+  { x: BC - 0.55, z: 2.35, rotation: Math.PI, activity: "sofa" },
+  { x: BC + 1.55, z: 2.35, rotation: Math.PI, activity: "sofa" },
+  { x: BC - 2.35, z: -3.15, rotation: Math.PI / 2, activity: "coffee" },
+  { x: BC - 0.75, z: -5.85, rotation: 0, activity: "vending" },
+  { x: BC + 0.55, z: -5.85, rotation: 0, activity: "vending" },
+  { x: BC - 2.35, z: 2.45, rotation: Math.PI / 2, activity: "water" },
+  { x: BC - 2.35, z: 0.55, rotation: Math.PI / 2, activity: "microwave" },
+  { x: BC + 0.35, z: 3.15, rotation: 0, activity: "lounge" },
+  { x: BC + 2.15, z: 4.55, rotation: -Math.PI / 4, activity: "lounge" },
 ];
 
 export const REST_ACTIVITY_LABELS: Record<RestActivity, string> = {
