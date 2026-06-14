@@ -1,9 +1,8 @@
 import { EMPLOYEES } from "./employees";
 import { MEETING_CENTER } from "./officeAnchors";
-import { MovementTarget } from "./types";
 
 /** 员工碰撞半径（米） */
-export const EMPLOYEE_RADIUS = 0.3;
+export const EMPLOYEE_RADIUS = 0.28;
 
 /** 员工之间最小间距 */
 export const EMPLOYEE_SEPARATION = 0.52;
@@ -34,7 +33,7 @@ export const OFFICE_OBSTACLES: AABB[] = [
   { minX: 11.8, maxX: 18.6, minZ: -6.0, maxZ: -5.0 },
   { minX: 11.8, maxX: 18.6, minZ: 5.0, maxZ: 6.0 },
   { minX: 14.0, maxX: 16.4, minZ: -5.2, maxZ: -3.8 },
-  { minX: MC - 0.75, maxX: MC + 0.75, minZ: -1.8, maxZ: 2.5 },
+  { minX: MC - 0.65, maxX: MC + 0.65, minZ: -1.2, maxZ: 2.2 },
 
   { minX: BC - 3.5, maxX: BC - 2.5, minZ: -4.5, maxZ: 3.5 },
   { minX: BC - 3.4, maxX: BC - 2.6, minZ: 0.2, maxZ: 1.8 },
