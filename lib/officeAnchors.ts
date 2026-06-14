@@ -39,8 +39,8 @@ function breakWorld(localX: number, localZ: number, rotation: number): WorldAnch
 
 /** 会议椅：眼睛面朝桌面（长边侧向朝桌，短边朝桌心） */
 function meetingFaceRotation(chairX: number, chairZ: number): number {
-  if (chairX < -0.5) return Math.PI / 2;
-  if (chairX > 0.5) return -Math.PI / 2;
+  if (chairX < -0.5) return -Math.PI / 2;
+  if (chairX > 0.5) return Math.PI / 2;
   return facingFromDelta(0 - chairX, 0.4 - chairZ);
 }
 
