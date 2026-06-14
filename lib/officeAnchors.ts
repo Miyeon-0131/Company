@@ -21,8 +21,8 @@ export interface RestAnchor extends WorldAnchor {
 const MC = MEETING_CENTER[0];
 const BC = BREAK_CENTER[0];
 
-/** 落座/就位时，人站在椅子靠背正后方（朝桌面/家具方向） */
-const BEHIND_CHAIR = 0.58;
+/** 与 Employee.tsx 中 character 组 local z 偏移一致 */
+const SIT_OFFSET = 0.85;
 /** 最后一段路径：先走到椅后更远一点再就位 */
 export const APPROACH_BEHIND = 0.85;
 
@@ -34,24 +34,21 @@ function breakWorld(localX: number, localZ: number, rotation: number): WorldAnch
   return { x: BC + localX, z: localZ, rotation };
 }
 
+/** 面朝会议桌中心 */
+function faceTowardMeetingTable(chairX: number, chairZ: number): number {
+  const dx = 0 - chairX;
+  const dz = 0.4 - chairZ;
+  return Math.atan2(dx, -dz);
+}
+
 /**
- * 会议椅后方就位。
- * chairRot 与 MeetingRoom Chair 组件一致；员工面朝桌面。
+ * 会议椅落座：root 坐标补偿坐姿偏移，使角色身体对齐椅心并面朝桌面。
  */
-function behindMeetingChair(
-  chairX: number,
-  chairZ: number,
-  chairRot: number,
-  faceRot: number
-): WorldAnchor {
-  // 椅背网格在局部 +Z；旋转后 (sin, cos) 即靠背朝向，沿该方向偏移才是「椅背后方」
-  const backX = Math.sin(chairRot);
-  const backZ = Math.cos(chairRot);
-  return meetWorld(
-    chairX + backX * BEHIND_CHAIR,
-    chairZ + backZ * BEHIND_CHAIR,
-    faceRot
-  );
+function meetSeatAtChair(chairX: number, chairZ: number): WorldAnchor {
+  const rotation = faceTowardMeetingTable(chairX, chairZ);
+  const ox = SIT_OFFSET * Math.sin(rotation);
+  const oz = SIT_OFFSET * Math.cos(rotation);
+  return meetWorld(chairX - ox, chairZ - oz, rotation);
 }
 
 /** 椅后预就位点（从该点再走到最终位，避免穿桌/穿椅） */
@@ -67,24 +64,10 @@ export function approachPointBehind(anchor: WorldAnchor): WorldAnchor {
 
 /** 会议室 10 椅：长边各 4（等间距）+ 短边各 1 */
 export const MEETING_ANCHORS: WorldAnchor[] = [
-  ...MEETING_LONG_SIDE_Z.map((z) =>
-    behindMeetingChair(-MEETING_SIDE_X, z, -Math.PI / 2, Math.PI / 2)
-  ),
-  ...MEETING_LONG_SIDE_Z.map((z) =>
-    behindMeetingChair(MEETING_SIDE_X, z, Math.PI / 2, -Math.PI / 2)
-  ),
-  behindMeetingChair(
-    MEETING_SHORT_CHAIRS[0]!.x,
-    MEETING_SHORT_CHAIRS[0]!.z,
-    MEETING_SHORT_CHAIRS[0]!.rotation,
-    Math.PI
-  ),
-  behindMeetingChair(
-    MEETING_SHORT_CHAIRS[1]!.x,
-    MEETING_SHORT_CHAIRS[1]!.z,
-    MEETING_SHORT_CHAIRS[1]!.rotation,
-    0
-  ),
+  ...MEETING_LONG_SIDE_Z.map((z) => meetSeatAtChair(-MEETING_SIDE_X, z)),
+  ...MEETING_LONG_SIDE_Z.map((z) => meetSeatAtChair(MEETING_SIDE_X, z)),
+  meetSeatAtChair(MEETING_SHORT_CHAIRS[0]!.x, MEETING_SHORT_CHAIRS[0]!.z),
+  meetSeatAtChair(MEETING_SHORT_CHAIRS[1]!.x, MEETING_SHORT_CHAIRS[1]!.z),
 ];
 
 /** 休息区：沙发/设备前方就位 */
