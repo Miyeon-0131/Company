@@ -5,6 +5,7 @@ import {
   MEETING_ANCHORS,
   REST_ANCHORS,
 } from "./officeAnchors";
+import { pairEmployeesToAnchors } from "./anchorAssignment";
 import {
   buildBreakPath,
   buildDeskPathFrom,
@@ -59,6 +60,7 @@ interface OfficeState {
   employeePoses: Record<string, EmployeePose>;
   movementTargets: Record<string, MovementTarget | null>;
   movementQueues: Record<string, MovementTarget[]>;
+  movementHoldRemaining: Record<string, number>;
   restActivities: Record<string, RestActivity | null>;
   officeMode: OfficeMode;
   modeRemainingSec: number;
@@ -126,6 +128,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   employeePoses: initialPoses(),
   movementTargets: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
   movementQueues: Object.fromEntries(EMPLOYEES.map((e) => [e.id, []])),
+  movementHoldRemaining: {},
   restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
   officeMode: "normal",
   modeRemainingSec: 0,
@@ -196,6 +199,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     const nextTargets = { ...state.movementTargets };
     const nextQueues = { ...state.movementQueues };
     const nextRest = { ...state.restActivities };
+    const nextHold = { ...state.movementHoldRemaining };
 
     for (const emp of EMPLOYEES) {
       const target = state.movementTargets[emp.id];
@@ -207,6 +211,34 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       const dist = Math.hypot(dx, dz);
 
       if (dist <= ARRIVE_DIST) {
+        const holdLeft = nextHold[emp.id] ?? 0;
+        if (holdLeft <= 0 && (target.waitSec ?? 0) > 0) {
+          nextHold[emp.id] = target.waitSec!;
+          nextPoses[emp.id] = {
+            x: target.x,
+            z: target.z,
+            rotation: target.rotation,
+          };
+          nextStatuses[emp.id] = target.finalStatus;
+          nextTexts[emp.id] = target.text ?? null;
+          changed = true;
+          continue;
+        }
+        if (holdLeft > 0) {
+          nextHold[emp.id] = holdLeft - dt;
+          nextPoses[emp.id] = {
+            x: target.x,
+            z: target.z,
+            rotation: target.rotation,
+          };
+          nextStatuses[emp.id] = target.finalStatus;
+          if (holdLeft - dt > 0) {
+            changed = true;
+            continue;
+          }
+          nextHold[emp.id] = 0;
+        }
+
         const queue = nextQueues[emp.id] ?? [];
         if (queue.length > 0) {
           nextTargets[emp.id] = queue[0]!;
@@ -256,6 +288,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
         movementTargets: nextTargets,
         movementQueues: nextQueues,
         restActivities: nextRest,
+        movementHoldRemaining: nextHold,
       });
     }
   },
@@ -265,8 +298,9 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     s.setIdleChatter(null);
     const targets = { ...s.movementTargets };
     const queues = { ...s.movementQueues };
+    const anchors = pairEmployeesToAnchors(MEETING_ANCHORS);
     EMPLOYEES.forEach((emp, i) => {
-      const anchor = MEETING_ANCHORS[i % MEETING_ANCHORS.length]!;
+      const anchor = anchors[i]!;
       assignMovementChain(
         targets,
         queues,
@@ -277,6 +311,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     set({
       movementTargets: targets,
       movementQueues: queues,
+      movementHoldRemaining: {},
       restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
     });
     EMPLOYEES.forEach((e) => s.setStatus(e.id, "walking", "🚶 去会议室…"));
@@ -288,11 +323,16 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     s.setIdleChatter(null);
     const targets = { ...s.movementTargets };
     const queues = { ...s.movementQueues };
+    const anchors = pairEmployeesToAnchors(REST_ANCHORS);
     EMPLOYEES.forEach((emp, i) => {
-      const anchor = REST_ANCHORS[i % REST_ANCHORS.length]!;
+      const anchor = anchors[i]!;
       assignMovementChain(targets, queues, emp.id, buildBreakPath(emp, i, anchor));
     });
-    set({ movementTargets: targets, movementQueues: queues });
+    set({
+      movementTargets: targets,
+      movementQueues: queues,
+      movementHoldRemaining: {},
+    });
     EMPLOYEES.forEach((e) => s.setStatus(e.id, "walking", "🚶 去休息区…"));
     s.addLog("系统", "全员前往休息区", "system");
   },
@@ -313,6 +353,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     set({
       movementTargets: targets,
       movementQueues: queues,
+      movementHoldRemaining: {},
       restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
       officeMode: "normal",
       modeRemainingSec: 0,

@@ -38,6 +38,8 @@ export interface MovementTarget {
   finalStatus: AgentStatus;
   restActivity?: RestActivity;
   text?: string;
+  /** 到达该点后原地等待（秒），用于错峰出发 */
+  waitSec?: number;
 }
 
 /** 可配置时段（时/分/秒） */
