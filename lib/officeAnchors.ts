@@ -1,4 +1,5 @@
 import { RestActivity } from "./types";
+import { BREAK_SOFAS } from "./breakLayout";
 import {
   backVector,
   facingFromDelta,
@@ -69,18 +70,30 @@ export const MEETING_ANCHORS: WorldAnchor[] = [
   meetSeatAtChair(MEETING_SHORT_CHAIRS[1]!.x, MEETING_SHORT_CHAIRS[1]!.z),
 ];
 
-/** 休息区：沙发/设备前方就位 */
+function breakSeatAt(seatX: number, seatZ: number, rotation: number): WorldAnchor {
+  const root = seatRootAt(seatX, seatZ, rotation);
+  return breakWorld(root.x, root.z, root.rotation);
+}
+
+function breakRestAt(
+  seatX: number,
+  seatZ: number,
+  rotation: number,
+  activity: RestActivity
+): RestAnchor {
+  return { ...breakSeatAt(seatX, seatZ, rotation), activity };
+}
+
+/** 休息区锚点 */
 export const REST_ANCHORS: RestAnchor[] = [
-  { ...breakWorld(0.4, 4.72, Math.PI), activity: "sofa" },
-  { ...breakWorld(-0.6, 2.32, 0), activity: "sofa" },
-  { ...breakWorld(1.4, 2.32, 0), activity: "sofa" },
-  { ...breakWorld(-2.15, -3.35, Math.PI / 2), activity: "coffee" },
-  { ...breakWorld(-0.7, -5.55, 0), activity: "vending" },
-  { ...breakWorld(0.6, -5.55, 0), activity: "vending" },
-  { ...breakWorld(-2.15, 2.45, Math.PI / 2), activity: "water" },
-  { ...breakWorld(-2.15, 0.55, Math.PI / 2), activity: "microwave" },
-  { ...breakWorld(0.4, 3.05, Math.PI), activity: "lounge" },
-  { ...breakWorld(2.0, 4.45, (3 * Math.PI) / 4), activity: "lounge" },
+  ...BREAK_SOFAS.map((s) => breakRestAt(s.x, s.z, s.rotation, "sofa")),
+  breakRestAt(-2.15, -3.35, Math.PI / 2, "coffee"),
+  breakRestAt(-0.7, -5.55, 0, "vending"),
+  breakRestAt(0.6, -5.55, 0, "vending"),
+  breakRestAt(-2.15, 2.45, Math.PI / 2, "water"),
+  breakRestAt(-2.15, 0.55, Math.PI / 2, "microwave"),
+  breakRestAt(0.4, 3.15, Math.PI, "lounge"),
+  breakRestAt(2.0, 4.55, (3 * Math.PI) / 4, "lounge"),
 ];
 
 export const REST_ACTIVITY_LABELS: Record<RestActivity, string> = {
