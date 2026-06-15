@@ -3,6 +3,7 @@ import path from "node:path";
 import type { PDFFont } from "pdf-lib";
 import { Artifact } from "@/lib/types";
 import { chatClaude, extractJsonObject } from "@/lib/server/llm";
+import { isValidEmail, normalizeEmail } from "@/lib/mail";
 import { GmailAuth, sendGmail } from "@/lib/server/google";
 import { generatedDir } from "@/lib/server/paths";
 import { addStyledSheet, workbookToBuffer } from "@/lib/server/excelStyle";
@@ -22,6 +23,8 @@ export interface ExecContext {
   prompt: string;
   inputs: ToolInput[];
   missionId: string;
+  /** 用户指定的收件人邮箱 */
+  mailTo?: string;
   /** 已登录的 Gmail 授权（来自 Google OAuth），优先用它发信 */
   gmailAuth?: GmailAuth | null;
 }
@@ -899,51 +902,57 @@ async function exportPdf(ctx: ExecContext): Promise<ExecResult> {
   }
 }
 
-// ── 邮件专员：优先 Gmail OAuth，其次 SMTP，附带全部交付物 ──
-async function sendEmail(ctx: ExecContext): Promise<ExecResult> {
-  // 读取本次任务生成的全部文件作为附件
-  const dir = path.join(GEN_DIR, ctx.missionId);
-  let files: string[] = [];
+/** 读取任务目录下的全部交付文件 */
+async function listMissionFiles(missionId: string): Promise<string[]> {
+  const dir = path.join(GEN_DIR, missionId);
   try {
-    files = await fs.readdir(dir);
+    return await fs.readdir(dir);
   } catch {
-    /* 没有文件也允许发纯文本邮件 */
+    return [];
   }
-  const summaryList = ctx.inputs.map((i) => `<li>${i.summary}</li>`).join("");
-  const subject = `【任务交付】${topic(ctx.prompt)}`;
-  const html = `<h2>📦 任务交付报告</h2>
-<p><b>指令：</b>${ctx.prompt}</p>
-<ul>${summaryList}</ul>
-<p>共 ${files.length} 个附件，由 AI Agent Virtual Office 自动生成并发送。</p>`;
+}
 
-  // 方式一：用户已用 Google 账号登录 → 通过 Gmail API 代表本人发信
-  if (ctx.gmailAuth?.refreshToken) {
+/** 真实发信：优先 Gmail OAuth，其次 SMTP */
+export async function deliverEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  missionId?: string;
+  gmailAuth?: GmailAuth | null;
+}): Promise<ExecResult> {
+  const to = normalizeEmail(params.to);
+  if (!isValidEmail(to)) {
+    return { summary: "收件人邮箱格式不正确", mode: "mock" };
+  }
+
+  const missionId = params.missionId ?? "";
+  const files = missionId ? await listMissionFiles(missionId) : [];
+
+  if (params.gmailAuth?.refreshToken) {
     const attachments = await Promise.all(
       files.map(async (f) => ({
         filename: f,
-        content: await fs.readFile(path.join(dir, f)),
+        content: await fs.readFile(path.join(GEN_DIR, missionId, f)),
       }))
     );
-    await sendGmail(ctx.gmailAuth.refreshToken, {
-      from: `AI Virtual Office <${ctx.gmailAuth.email}>`,
-      to: ctx.gmailAuth.email,
-      subject,
-      html,
+    await sendGmail(params.gmailAuth.refreshToken, {
+      from: `AI Virtual Office <${params.gmailAuth.email}>`,
+      to,
+      subject: params.subject,
+      html: params.html,
       attachments,
     });
     return {
-      summary: `已通过你的 Gmail 账号（${ctx.gmailAuth.email}）真实发送交付邮件（含 ${files.length} 个附件），请查收`,
+      summary: `已通过 Gmail（${params.gmailAuth.email}）发送至 ${to}（${files.length} 个附件）`,
       mode: "real",
     };
   }
 
-  // 方式二：SMTP 兜底
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 465);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const to = process.env.MAIL_TO || user;
-  if (host && user && pass && to) {
+  if (host && user && pass) {
     const nodemailer = (await import("nodemailer")).default;
     const transporter = nodemailer.createTransport({
       host,
@@ -954,20 +963,52 @@ async function sendEmail(ctx: ExecContext): Promise<ExecResult> {
     await transporter.sendMail({
       from: `"AI Virtual Office" <${user}>`,
       to,
-      subject,
-      html,
-      attachments: files.map((f) => ({ filename: f, path: path.join(dir, f) })),
+      subject: params.subject,
+      html: params.html,
+      attachments: files.map((f) => ({
+        filename: f,
+        path: path.join(GEN_DIR, missionId, f),
+      })),
     });
     return {
-      summary: `已通过 SMTP 真实发送交付邮件至 ${to}（含 ${files.length} 个附件），请查收`,
+      summary: `已通过 SMTP 发送至 ${to}（${files.length} 个附件）`,
       mode: "real",
     };
   }
 
   return {
-    summary: `（模拟）成果已就绪但未真实发信 —— 点击右上角「邮箱登录」用 Google 账号授权后即可自动发送`,
+    summary:
+      "（模拟）未真实发信 —— 请在设置中完成 Google 邮箱授权，或在服务端配置 SMTP",
     mode: "mock",
   };
+}
+
+// ── 邮件专员：优先 Gmail OAuth，其次 SMTP，附带全部交付物 ──
+async function sendEmail(ctx: ExecContext): Promise<ExecResult> {
+  const mailTo = ctx.mailTo?.trim();
+  if (!mailTo || !isValidEmail(mailTo)) {
+    return {
+      summary:
+        "（模拟）成果已就绪 —— 请在指令终端填写「发送至」收件人邮箱后再执行任务",
+      mode: "mock",
+    };
+  }
+
+  const files = await listMissionFiles(ctx.missionId);
+  const summaryList = ctx.inputs.map((i) => `<li>${i.summary}</li>`).join("");
+  const subject = `【任务交付】${topic(ctx.prompt)}`;
+  const html = `<h2>📦 任务交付报告</h2>
+<p><b>指令：</b>${ctx.prompt}</p>
+<ul>${summaryList}</ul>
+<p>共 ${files.length} 个附件，由 AI Agent Virtual Office 自动生成并发送。</p>`;
+
+  return deliverEmail({
+    to: mailTo,
+    subject,
+    html,
+    missionId: ctx.missionId,
+    gmailAuth: ctx.gmailAuth,
+  });
 }
 
 // ── 工具注册表 ────────────────────────────────────

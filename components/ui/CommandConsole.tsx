@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useOfficeStore } from "@/lib/store";
 import { runMission } from "@/lib/agentManager";
+import { loadConfig, saveConfig } from "@/lib/config";
+import { isValidEmail } from "@/lib/mail";
 import { LogEntry } from "@/lib/types";
 
 const EXAMPLES = [
@@ -26,6 +28,9 @@ const MAX_H = 520;
 
 export default function CommandConsole() {
   const [input, setInput] = useState("");
+  const [mailTo, setMailTo] = useState("");
+  const [sending, setSending] = useState(false);
+  const [mailHint, setMailHint] = useState<string | null>(null);
   const [size, setSize] = useState({ width: 760, height: 280 });
   const logs = useOfficeStore((s) => s.logs);
   const mission = useOfficeStore((s) => s.mission);
@@ -34,6 +39,10 @@ export default function CommandConsole() {
   const start = useRef({ x: 0, y: 0, w: 760, h: 280 });
 
   const busy = !!mission && mission.status !== "done";
+
+  useEffect(() => {
+    setMailTo(loadConfig().email ?? "");
+  }, []);
 
   useEffect(() => {
     try {
@@ -78,6 +87,43 @@ export default function CommandConsole() {
     });
   }, []);
 
+  const persistMailTo = (value: string) => {
+    saveConfig({ ...loadConfig(), email: value.trim() });
+  };
+
+  const sendMailNow = async () => {
+    const to = mailTo.trim();
+    if (!isValidEmail(to)) {
+      setMailHint("请填写有效的收件人邮箱");
+      return;
+    }
+    setSending(true);
+    setMailHint(null);
+    const mission = useOfficeStore.getState().mission;
+    try {
+      const res = await fetch("/api/send-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to,
+          missionId: mission?.status === "done" ? mission.id : undefined,
+          prompt: mission?.prompt,
+        }),
+      });
+      const data = (await res.json()) as { summary?: string; error?: string };
+      if (!res.ok) {
+        setMailHint(data.error ?? "发送失败");
+        return;
+      }
+      setMailHint(data.summary ?? "已发送");
+      useOfficeStore.getState().addLog("邮件专员", data.summary ?? "邮件已发送", "done");
+    } catch (err) {
+      setMailHint(err instanceof Error ? err.message : "网络异常");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     const prompt = input.trim();
@@ -86,7 +132,7 @@ export default function CommandConsole() {
     void runMission(prompt);
   };
 
-  const logHeight = Math.max(0, size.height - 96);
+  const logHeight = Math.max(0, size.height - 128);
 
   return (
     <div
@@ -142,6 +188,33 @@ export default function CommandConsole() {
             ))}
             <div ref={logEndRef} />
           </div>
+        )}
+
+        {/* 收件人 */}
+        <div className="flex shrink-0 items-center gap-2 border-t border-white/5 px-4 py-2">
+          <span className="shrink-0 font-mono text-[11px] text-slate-500">📨 发送至</span>
+          <input
+            type="email"
+            value={mailTo}
+            onChange={(e) => setMailTo(e.target.value)}
+            onBlur={() => persistMailTo(mailTo)}
+            disabled={busy || sending}
+            placeholder="收件人邮箱，例如 boss@company.com"
+            className="min-w-0 flex-1 bg-transparent font-mono text-[11px] text-slate-200 placeholder-slate-600 outline-none disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={() => void sendMailNow()}
+            disabled={busy || sending || !mailTo.trim()}
+            className="shrink-0 rounded-md border border-cyan-400/30 px-2.5 py-1 text-[10px] font-semibold text-cyan-300 transition-colors hover:border-cyan-400/60 hover:bg-cyan-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {sending ? "发送中..." : "立即发送"}
+          </button>
+        </div>
+        {mailHint && (
+          <p className="shrink-0 px-4 pb-1 font-mono text-[10px] text-amber-300/90">
+            {mailHint}
+          </p>
         )}
 
         {/* 输入区 */}

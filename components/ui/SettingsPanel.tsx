@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Theme, useThemeStore } from "@/lib/theme";
 import { useOfficeStore } from "@/lib/store";
+import { loadConfig, saveConfig } from "@/lib/config";
 
 interface MailStatus {
   configured: boolean;
@@ -32,6 +33,7 @@ export default function SettingsPanel() {
   const settingsOpen = useOfficeStore((s) => s.settingsOpen);
   const setSettingsOpen = useOfficeStore((s) => s.setSettingsOpen);
   const [mail, setMail] = useState<MailStatus>({ configured: false, email: null });
+  const [recipient, setRecipient] = useState("");
   const [env, setEnv] = useState<EnvStatus | null>(null);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
@@ -40,6 +42,10 @@ export default function SettingsPanel() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (settingsOpen) setRecipient(loadConfig().email ?? "");
+  }, [settingsOpen]);
 
   const refreshMail = useCallback(() => {
     fetch("/api/auth/status")
@@ -134,6 +140,24 @@ export default function SettingsPanel() {
               </div>
               <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
                 Shared 变量需关联到 Company 项目并重新部署后才生效。
+              </p>
+
+              {/* 收件人 */}
+              <p className="mb-2 mt-5 text-xs font-semibold text-slate-200">
+                交付收件人
+              </p>
+              <input
+                type="email"
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                onBlur={() =>
+                  saveConfig({ ...loadConfig(), email: recipient.trim() })
+                }
+                placeholder="任务完成后邮件发到此邮箱"
+                className="w-full rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
+              />
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                填写后，任务执行到「邮件专员」时会自动发送至该地址；也可在指令终端点击「立即发送」。
               </p>
 
               {/* 邮箱授权 */}

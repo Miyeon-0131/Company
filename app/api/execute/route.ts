@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isValidEmail, normalizeEmail } from "@/lib/mail";
 import { readAuthFromRequest } from "@/lib/server/google";
 
 export const runtime = "nodejs";
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
     prompt: string;
     inputs?: { summary: string; payload?: unknown }[];
     missionId: string;
+    mailTo?: string;
   };
 
   try {
@@ -26,10 +28,16 @@ export async function POST(req: Request) {
 
   try {
     const { executeTool } = await import("@/lib/server/tools");
+    const mailTo = body.mailTo ? normalizeEmail(body.mailTo) : undefined;
+    if (mailTo && !isValidEmail(mailTo)) {
+      return NextResponse.json({ error: "收件人邮箱格式不正确" }, { status: 400 });
+    }
+
     const result = await executeTool(body.employeeId, {
       prompt: body.prompt,
       inputs: body.inputs ?? [],
       missionId: body.missionId,
+      mailTo,
       gmailAuth: readAuthFromRequest(req),
     });
     return NextResponse.json(result);

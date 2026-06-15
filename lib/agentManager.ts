@@ -1,6 +1,7 @@
 import { useOfficeStore } from "./store";
 import { EMPLOYEES } from "./employees";
 import { planWithRules } from "./planner";
+import { loadConfig } from "./config";
 import { Artifact, SubTask } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -143,6 +144,7 @@ async function executeTask(
   });
   let result: ExecResult;
   try {
+    const mailTo = loadConfig().email?.trim();
     const res = await fetch("/api/execute", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -151,6 +153,7 @@ async function executeTask(
         prompt,
         inputs,
         missionId,
+        mailTo: mailTo || undefined,
       }),
     });
     const contentType = res.headers.get("content-type") ?? "";
