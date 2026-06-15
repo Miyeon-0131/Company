@@ -84,16 +84,16 @@ function breakRestAt(
   return { ...breakSeatAt(seatX, seatZ, rotation), activity };
 }
 
-/** 休息区锚点 */
+/** 休息区锚点：仅沙发用坐姿偏移，其余保持原坐标 */
 export const REST_ANCHORS: RestAnchor[] = [
   ...BREAK_SOFAS.map((s) => breakRestAt(s.x, s.z, s.rotation, "sofa")),
-  breakRestAt(-2.15, -3.35, Math.PI / 2, "coffee"),
-  breakRestAt(-0.7, -5.55, 0, "vending"),
-  breakRestAt(0.6, -5.55, 0, "vending"),
-  breakRestAt(-2.15, 2.45, Math.PI / 2, "water"),
-  breakRestAt(-2.15, 0.55, Math.PI / 2, "microwave"),
-  breakRestAt(0.4, 3.15, Math.PI, "lounge"),
-  breakRestAt(2.0, 4.55, (3 * Math.PI) / 4, "lounge"),
+  { ...breakWorld(-2.15, -3.35, Math.PI / 2), activity: "coffee" },
+  { ...breakWorld(-0.7, -5.55, 0), activity: "vending" },
+  { ...breakWorld(0.6, -5.55, 0), activity: "vending" },
+  { ...breakWorld(-2.15, 2.45, Math.PI / 2), activity: "water" },
+  { ...breakWorld(-2.15, 0.55, Math.PI / 2), activity: "microwave" },
+  { ...breakWorld(0.4, 3.05, Math.PI), activity: "lounge" },
+  { ...breakWorld(2.0, 4.45, (3 * Math.PI) / 4), activity: "lounge" },
 ];
 
 export const REST_ACTIVITY_LABELS: Record<RestActivity, string> = {
