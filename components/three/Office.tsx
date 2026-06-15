@@ -22,6 +22,8 @@ const FLOOR_D = 16;
 export default function Office() {
   const officeRef = useRef<Group>(null);
   const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+  const focusPanelOpen = useOfficeStore((s) => s.focusPanelOpen);
+  const hideSceneLabels = settingsOpen || focusPanelOpen;
 
   useFrame((state) => {
     if (!officeRef.current) return;
@@ -89,7 +91,7 @@ export default function Office() {
           </mesh>
 
           {/* 部门悬浮标牌 */}
-          {!settingsOpen && (
+          {!hideSceneLabels && (
           <Html
             position={[dept.center[0], 3.1, dept.center[1]]}
             center

@@ -1,6 +1,5 @@
 import {
   approachPointBehind,
-  REST_ACTIVITY_LABELS,
   REST_ANCHORS,
   WorldAnchor,
 } from "./officeAnchors";
@@ -63,7 +62,6 @@ function holdStep(
 function finalSeat(
   anchor: WorldAnchor,
   status: MovementTarget["finalStatus"],
-  text: string,
   extra?: Partial<MovementTarget>
 ): MovementTarget {
   return {
@@ -71,12 +69,11 @@ function finalSeat(
     z: anchor.z,
     rotation: anchor.rotation,
     finalStatus: status,
-    text,
     ...extra,
   };
 }
 
-/** 最后两步：先到椅背正后方外沿，再就位 */
+/** 最后一段：走到椅后 → 转身朝座位走过去（避免倒着入座） */
 function appendBehindApproach(
   chain: MovementTarget[],
   anchor: WorldAnchor,
@@ -87,7 +84,14 @@ function appendBehindApproach(
 ) {
   const pre = approachPointBehind(anchor);
   chain.push(walkStep(pre.x, pre.z, fromX, fromZ, walkText));
-  chain.push(final);
+  chain.push({
+    x: anchor.x,
+    z: anchor.z,
+    rotation: anchor.rotation,
+    finalStatus: final.finalStatus,
+    text: final.text,
+    restActivity: final.restActivity,
+  });
 }
 
 function corridorZ(emp: EmployeeConfig, index: number): number {
@@ -158,7 +162,7 @@ export function buildMeetingPath(
     fromX,
     fromZ,
     "🚶 去会议室…",
-    finalSeat(anchor, "focusing", "🎯 专注会议中")
+    finalSeat(anchor, "focusing")
   );
   return chain;
 }
@@ -222,7 +226,7 @@ export function buildBreakPath(
     fromX,
     fromZ,
     "🚶 去休息区…",
-    finalSeat(anchor, "resting", REST_ACTIVITY_LABELS[anchor.activity] ?? "☕ 休息中", {
+    finalSeat(anchor, "resting", {
       restActivity: anchor.activity,
     })
   );
@@ -268,6 +272,6 @@ export function buildDeskPathFrom(
     chain.push(walkStep(pre.x, pre.z, cx, cz, "🚶 回工位…"));
   }
 
-  chain.push(finalSeat(deskAnchor, "idle", ""));
+  chain.push(finalSeat(deskAnchor, "idle"));
   return chain;
 }

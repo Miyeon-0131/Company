@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DEFAULT_BREAK_DURATION,
   DEFAULT_FOCUS_DURATION,
@@ -65,10 +65,18 @@ export default function FocusModePanel() {
   const startFocusSession = useOfficeStore((s) => s.startFocusSession);
   const startBreakSession = useOfficeStore((s) => s.startBreakSession);
   const stopOfficeMode = useOfficeStore((s) => s.stopOfficeMode);
+  const setFocusPanelOpen = useOfficeStore((s) => s.setFocusPanelOpen);
+  const modeCameraLocked = useOfficeStore((s) => s.modeCameraLocked);
+  const setModeCameraLocked = useOfficeStore((s) => s.setModeCameraLocked);
 
   const [focusDur, setFocusDur] = useState(DEFAULT_FOCUS_DURATION);
   const [breakDur, setBreakDur] = useState(DEFAULT_BREAK_DURATION);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setFocusPanelOpen(open);
+    return () => setFocusPanelOpen(false);
+  }, [open, setFocusPanelOpen]);
 
   if (settingsOpen) return null;
 
@@ -111,6 +119,9 @@ export default function FocusModePanel() {
               {formatCountdown(modeRemainingSec)}
             </div>
           )}
+          {active && modeCameraLocked && (
+            <div className="mt-0.5 text-[9px] text-white/50">镜头锁定 · 点画面解锁</div>
+          )}
         </div>
         <span className="text-slate-500">{open ? "▾" : "▸"}</span>
       </button>
@@ -133,13 +144,22 @@ export default function FocusModePanel() {
           />
 
           {active ? (
-            <button
-              type="button"
-              onClick={stopOfficeMode}
-              className="w-full rounded-lg border border-rose-400/40 bg-rose-950/50 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-900/60"
-            >
-              {officeMode === "focus" ? "结束专注" : "结束休息"}
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setModeCameraLocked(!modeCameraLocked)}
+                className="w-full rounded-lg border border-white/15 bg-slate-900/60 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-800/70"
+              >
+                {modeCameraLocked ? "🔒 点击画面解锁视角" : "🔓 重新锁定镜头"}
+              </button>
+              <button
+                type="button"
+                onClick={stopOfficeMode}
+                className="w-full rounded-lg border border-rose-400/40 bg-rose-950/50 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-900/60"
+              >
+                {officeMode === "focus" ? "结束专注" : "结束休息"}
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col gap-2">
               <button
@@ -168,7 +188,7 @@ export default function FocusModePanel() {
           )}
 
           <p className="text-[9px] leading-relaxed text-slate-500">
-            专注与休息可独立开启；镜头会锁定并环绕对应区域，结束模式后恢复自由视角。老板下指令时全员回工位。
+            专注与休息可独立开启；进入后镜头默认环绕锁定，点击画面一次即可自由旋转，也可在面板中重新锁定。老板下指令时全员回工位。
           </p>
         </div>
       )}

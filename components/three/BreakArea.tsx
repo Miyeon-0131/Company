@@ -120,6 +120,8 @@ export default function BreakArea({
   position: [number, number, number];
 }) {
   const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+  const focusPanelOpen = useOfficeStore((s) => s.focusPanelOpen);
+  const hideSceneLabels = settingsOpen || focusPanelOpen;
 
   return (
     <group position={position}>
@@ -250,7 +252,7 @@ export default function BreakArea({
       <BigPlant position={[-3.0, 0, 6.2]} scale={0.85} />
 
       {/* 悬浮标牌 */}
-      {!settingsOpen && (
+      {!hideSceneLabels && (
       <Html
         position={[0, 3.3, 0]}
         center

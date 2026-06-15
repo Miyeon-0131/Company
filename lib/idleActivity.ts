@@ -2,19 +2,24 @@ import { IdleActivity } from "./types";
 
 export const IDLE_ACTIVITY_LABELS: Record<IdleActivity, string | null> = {
   sit: null,
-  coffee: "☕ 抿一口咖啡",
-  stretch: "🙆 伸个懒腰",
-  phone: "📱 刷会儿手机",
-  daze: "😶‍🌫️ 放空发呆",
+  coffee: null,
+  stretch: null,
+  phone: null,
+  daze: null,
 };
 
-/** 工位摸鱼动作轮换：不总是干坐着 */
-export function pickIdleActivity(turnIdx: number): IdleActivity {
-  const roll = (turnIdx * 11 + 7) % 10;
-  if (roll < 3) return "sit";
-  if (roll < 6) return "coffee";
-  if (roll < 8) return "stretch";
-  if (roll < 9) return "phone";
+function employeeSalt(employeeId: string): number {
+  return employeeId.split("").reduce((n, c) => n + c.charCodeAt(0), 0);
+}
+
+/** 工位摸鱼动作轮换：每人独立节奏，避免全员同步做同一动作 */
+export function pickIdleActivity(turnIdx: number, employeeId: string): IdleActivity {
+  const salt = employeeSalt(employeeId);
+  const roll = (turnIdx * 11 + salt * 3 + 7) % 10;
+  if (roll < 2) return "sit";
+  if (roll < 5) return "coffee";
+  if (roll < 7) return "stretch";
+  if (roll < 8) return "phone";
   return "daze";
 }
 

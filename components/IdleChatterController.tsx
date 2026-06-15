@@ -3,20 +3,46 @@
 import { useEffect, useRef } from "react";
 import { EMPLOYEES } from "@/lib/employees";
 import {
+  AREA_CHATTER_GAP_MS,
+  AREA_CHATTER_REPLY_DELAY_MS,
+  AREA_CHATTER_SHOW_MS,
+  ChatterScene,
+  getBreakLinePool,
+  getBreakReplyPool,
   getExpandChatter,
+  getMeetingLinePool,
+  getMeetingReplyPool,
   getQuipChatter,
   getReplyChatter,
   getRoleChatter,
   IDLE_CHATTER_GAP_MS,
   IDLE_CHATTER_REPLY_DELAY_MS,
   IDLE_CHATTER_SHOW_MS,
+  pickAreaChatterMode,
   pickChatterMode,
+  pickNonRepeatingLine,
 } from "@/lib/idleChatter";
 import { useOfficeStore } from "@/lib/store";
+import { AgentStatus } from "@/lib/types";
+
+interface LineState {
+  cursor: number;
+  recent: string[];
+}
+
+function speakersForScene(
+  scene: ChatterScene,
+  statuses: Record<string, AgentStatus>
+): string[] {
+  const want: AgentStatus =
+    scene === "meeting" ? "focusing" : scene === "break" ? "resting" : "idle";
+  return EMPLOYEES.filter((e) => (statuses[e.id] ?? "idle") === want).map(
+    (e) => e.id
+  );
+}
 
 /**
- * 全局待机播报：模式随机轮换。
- * solo / quip → 仅一人；reply / expand → 先主发言，3 秒后再接话，显示 10 秒后一起消失。
+ * 区域对话：工位 / 会议室 / 休息区各自播报，会议聊议题、休息聊放松。
  */
 export default function IdleChatterController() {
   const missionStatus = useOfficeStore((s) => s.mission?.status);
@@ -26,15 +52,20 @@ export default function IdleChatterController() {
   const loopGen = useRef(0);
 
   useEffect(() => {
-    const busy =
-      settingsOpen ||
-      officeMode !== "normal" ||
-      (missionStatus != null && missionStatus !== "done");
+    const missionBusy =
+      missionStatus != null && missionStatus !== "done";
 
-    if (busy) {
+    if (settingsOpen || missionBusy) {
       setIdleChatter(null);
       return;
     }
+
+    const scene: ChatterScene =
+      officeMode === "focus"
+        ? "meeting"
+        : officeMode === "break"
+          ? "break"
+          : "desk";
 
     const gen = ++loopGen.current;
     let cancelled = false;
@@ -42,8 +73,28 @@ export default function IdleChatterController() {
     const lineCounter: Record<string, number> = {};
     const replyCounter: Record<string, number> = {};
     const expandCounter: Record<string, number> = {};
+    const meetingLineState: LineState = { cursor: 0, recent: [] };
+    const meetingReplyState: LineState = { cursor: 0, recent: [] };
+    const breakReplyState: LineState = { cursor: 0, recent: [] };
+    const breakLineStates: Record<string, LineState> = {};
     let quipIdx = 0;
     const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const showMs =
+      scene === "desk" ? IDLE_CHATTER_SHOW_MS : AREA_CHATTER_SHOW_MS;
+    const replyDelayMs =
+      scene === "desk"
+        ? IDLE_CHATTER_REPLY_DELAY_MS
+        : AREA_CHATTER_REPLY_DELAY_MS;
+    const gapMs = scene === "desk" ? IDLE_CHATTER_GAP_MS : AREA_CHATTER_GAP_MS;
+
+    const breakLineState = (activity: string | null | undefined): LineState => {
+      const key = activity ?? "generic";
+      if (!breakLineStates[key]) {
+        breakLineStates[key] = { cursor: 0, recent: [] };
+      }
+      return breakLineStates[key]!;
+    };
 
     const sleep = (ms: number) =>
       new Promise<void>((resolve) => {
@@ -53,50 +104,92 @@ export default function IdleChatterController() {
     const loop = async () => {
       while (!cancelled && loopGen.current === gen) {
         const state = useOfficeStore.getState();
-        const idleIds = EMPLOYEES.filter(
-          (e) => (state.statuses[e.id] ?? "idle") === "idle"
-        ).map((e) => e.id);
+        const speakerIds = speakersForScene(scene, state.statuses);
 
-        if (!idleIds.length) {
+        if (!speakerIds.length) {
           setIdleChatter(null);
-          await sleep(IDLE_CHATTER_GAP_MS);
+          await sleep(gapMs);
           continue;
         }
 
-        const mode = pickChatterMode(turnIdx, idleIds.length);
-        const leadId = idleIds[turnIdx % idleIds.length]!;
+        const mode =
+          scene === "desk"
+            ? pickChatterMode(turnIdx, speakerIds.length)
+            : pickAreaChatterMode(turnIdx, speakerIds.length, scene);
+        const leadId = speakerIds[turnIdx % speakerIds.length]!;
         turnIdx += 1;
 
         let leadText: string;
-        if (mode === "quip") {
+        if (mode === "quip" && scene === "desk") {
           leadText = getQuipChatter(quipIdx++);
+        } else if (scene === "meeting") {
+          leadText = pickNonRepeatingLine(
+            getMeetingLinePool(),
+            meetingLineState
+          );
+        } else if (scene === "break") {
+          const activity = state.restActivities[leadId];
+          leadText = pickNonRepeatingLine(
+            getBreakLinePool(activity),
+            breakLineState(activity)
+          );
         } else {
           const leadLineIdx = lineCounter[leadId] ?? 0;
           lineCounter[leadId] = leadLineIdx + 1;
           leadText = getRoleChatter(leadId, leadLineIdx);
         }
 
-        const others = idleIds.filter((id) => id !== leadId);
+        const others = speakerIds.filter((id) => id !== leadId);
         let reply: { speakerId: string; text: string } | undefined;
 
         if (mode === "reply" && others.length > 0) {
           const replyId = others[(turnIdx + 2) % others.length]!;
-          const pairKey = `${leadId}->${replyId}`;
-          const replyIdx = replyCounter[pairKey] ?? 0;
-          replyCounter[pairKey] = replyIdx + 1;
-          reply = {
-            speakerId: replyId,
-            text: getReplyChatter(leadId, replyId, replyIdx),
-          };
+          if (scene === "meeting") {
+            reply = {
+              speakerId: replyId,
+              text: pickNonRepeatingLine(
+                getMeetingReplyPool(),
+                meetingReplyState
+              ),
+            };
+          } else if (scene === "break") {
+            reply = {
+              speakerId: replyId,
+              text: pickNonRepeatingLine(getBreakReplyPool(), breakReplyState),
+            };
+          } else {
+            const pairKey = `${scene}:${leadId}->${replyId}`;
+            const replyIdx = replyCounter[pairKey] ?? 0;
+            replyCounter[pairKey] = replyIdx + 1;
+            reply = {
+              speakerId: replyId,
+              text: getReplyChatter(leadId, replyId, replyIdx),
+            };
+          }
         } else if (mode === "expand" && others.length > 0) {
           const replyId = others[(turnIdx + 1) % others.length]!;
-          const pairKey = `expand:${leadId}->${replyId}`;
-          const expandIdx = expandCounter[pairKey] ?? 0;
-          expandCounter[pairKey] = expandIdx + 1;
-          reply = {
-            speakerId: replyId,
-            text: getExpandChatter(leadId, replyId, expandIdx),
-          };
+          if (scene === "meeting") {
+            reply = {
+              speakerId: replyId,
+              text: pickNonRepeatingLine(
+                getMeetingReplyPool(),
+                meetingReplyState
+              ),
+            };
+          } else if (scene === "break") {
+            reply = {
+              speakerId: replyId,
+              text: pickNonRepeatingLine(getBreakReplyPool(), breakReplyState),
+            };
+          } else {
+            const pairKey = `expand:${scene}:${leadId}->${replyId}`;
+            const expandIdx = expandCounter[pairKey] ?? 0;
+            expandCounter[pairKey] = expandIdx + 1;
+            reply = {
+              speakerId: replyId,
+              text: getExpandChatter(leadId, replyId, expandIdx),
+            };
+          }
         }
 
         setIdleChatter({
@@ -104,7 +197,7 @@ export default function IdleChatterController() {
         });
 
         if (reply) {
-          await sleep(IDLE_CHATTER_REPLY_DELAY_MS);
+          await sleep(replyDelayMs);
           if (cancelled || loopGen.current !== gen) break;
           setIdleChatter({
             lead: { speakerId: leadId, text: leadText },
@@ -112,11 +205,11 @@ export default function IdleChatterController() {
           });
         }
 
-        await sleep(IDLE_CHATTER_SHOW_MS);
+        await sleep(showMs);
         if (cancelled || loopGen.current !== gen) break;
 
         setIdleChatter(null);
-        await sleep(IDLE_CHATTER_GAP_MS);
+        await sleep(gapMs);
       }
     };
 

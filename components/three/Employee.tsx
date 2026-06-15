@@ -7,6 +7,8 @@ import { EmployeeConfig } from "@/lib/types";
 import { useOfficeStore } from "@/lib/store";
 import { getDepartment } from "@/lib/employees";
 import { lerpAngle } from "@/lib/movement";
+import { resolveHandProps } from "@/lib/handProps";
+import { HandProp } from "./employeeProps";
 import StatusBubble from "./StatusBubble";
 
 interface EmployeeProps {
@@ -17,6 +19,8 @@ export default function Employee({ config }: EmployeeProps) {
   const status = useOfficeStore((s) => s.statuses[config.id] ?? "idle");
   const overrideText = useOfficeStore((s) => s.statusTexts[config.id]);
   const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+  const focusPanelOpen = useOfficeStore((s) => s.focusPanelOpen);
+  const hideSceneLabels = settingsOpen || focusPanelOpen;
   const pose = useOfficeStore((s) => s.employeePoses[config.id]);
   const hasTarget = useOfficeStore((s) => s.movementTargets[config.id]);
   const restActivity = useOfficeStore((s) => s.restActivities[config.id]);
@@ -24,6 +28,7 @@ export default function Employee({ config }: EmployeeProps) {
   const setActiveScreen = useOfficeStore((s) => s.setActiveScreen);
 
   const department = getDepartment(config.departmentId);
+  const handProps = resolveHandProps(status, idleActivity, restActivity);
   const worldX = pose?.x ?? config.position[0];
   const worldZ = pose?.z ?? config.position[2];
   const worldRot = pose?.rotation ?? config.rotation;
@@ -65,10 +70,21 @@ export default function Employee({ config }: EmployeeProps) {
     )
       return;
 
-    root.rotation.y = lerpAngle(root.rotation.y, worldRot, 0.18);
-
-    const isWalking = status === "walking" || !!hasTarget;
+    const isWalking = status === "walking";
+    const isSeated =
+      status === "idle" ||
+      status === "working" ||
+      status === "thinking" ||
+      status === "done" ||
+      status === "focusing" ||
+      (status === "resting" && restActivity === "sofa");
     const isStanding = isWalking || (status === "resting" && restActivity !== "sofa");
+
+    root.rotation.y = lerpAngle(
+      root.rotation.y,
+      worldRot,
+      isWalking ? 0.7 : 0.22
+    );
 
     let charY = 0;
     let charForwardZ = 0;
@@ -110,11 +126,12 @@ export default function Employee({ config }: EmployeeProps) {
               headTiltZ = Math.sin(t * 1.2) * 0.08;
               break;
             case "phone":
-              headNodX = 0.18;
-              headTiltZ = Math.sin(t * 0.6) * 0.04;
-              leftArmRotX = -0.35;
-              rightArmRotX = -0.85;
-              rightArmRotY = 0.35;
+              headNodX = 0.22;
+              headTiltZ = Math.sin(t * 0.6) * 0.03;
+              leftArmRotX = -0.4;
+              leftArmRotY = 0.05;
+              rightArmRotX = -0.92;
+              rightArmRotY = 0.28;
               break;
             case "daze":
               headTiltZ = Math.sin(t * 0.35) * 0.12;
@@ -132,16 +149,16 @@ export default function Employee({ config }: EmployeeProps) {
         case "thinking":
           headTiltZ = Math.sin(t * 2.2) * 0.22;
           headNodX = -0.08;
-          torsoLean = -0.06;
           leftArmRotX = 0.85;
           leftArmRotY = -0.25;
           break;
 
         case "working":
-          leftArmRotX = -0.62 + Math.sin(t * 16) * 0.22;
-          rightArmRotX = -0.62 + Math.sin(t * 16 + Math.PI) * 0.22;
-          leftArmRotY = -0.32;
-          rightArmRotY = 0.32;
+          headNodX = 0;
+          leftArmRotX = -0.55 + Math.sin(t * 16) * 0.2;
+          rightArmRotX = -0.55 + Math.sin(t * 16 + Math.PI) * 0.2;
+          leftArmRotY = -0.28;
+          rightArmRotY = 0.28;
           break;
 
         case "done":
@@ -154,22 +171,35 @@ export default function Employee({ config }: EmployeeProps) {
           break;
 
         case "focusing":
-          leftArmRotX = -0.5 + Math.sin(t * 12) * 0.12;
-          rightArmRotX = -0.5 + Math.sin(t * 12 + Math.PI) * 0.12;
-          leftArmRotY = -0.2;
-          rightArmRotY = 0.2;
+          headNodX = 0.08 + Math.sin(t * 0.8) * 0.02;
+          headTiltZ = Math.sin(t * 0.5) * 0.03;
+          leftArmRotX = -0.82;
+          leftArmRotY = -0.12;
+          leftArmRotZ = 0.08;
+          rightArmRotX = -1.05 + Math.sin(t * 7) * 0.05;
+          rightArmRotY = 0.22;
+          rightArmRotZ = -0.06;
           break;
 
         case "resting":
           switch (restActivity) {
             case "sofa":
+              torsoLean = 0.1;
+              headTiltZ = Math.sin(t * 0.5) * 0.03;
+              headNodX = 0.2;
+              leftArmRotX = -0.5;
+              leftArmRotY = 0.12;
+              rightArmRotX = -0.95;
+              rightArmRotY = 0.25;
+              break;
             case "lounge":
-              torsoLean = 0.12;
-              headTiltZ = Math.sin(t * 0.5) * 0.04;
-              leftArmRotX = -0.2;
-              rightArmRotX = -0.2;
-              leftArmRotZ = 0.5;
-              rightArmRotZ = -0.5;
+              torsoLean = 0.05;
+              headNodX = 0.25;
+              leftArmRotX = -0.5;
+              leftArmRotY = 0.08;
+              rightArmRotX = -0.78;
+              rightArmRotY = 0.12;
+              rightArmRotZ = 0.05;
               break;
             case "coffee":
               torsoLean = 0.05;
@@ -205,7 +235,16 @@ export default function Employee({ config }: EmployeeProps) {
       cur + (target - cur) * k;
 
     character.position.y = lerp(character.position.y, charY, 0.18);
-    character.position.z = lerp(character.position.z, isStanding ? 0 : 0.85 + charForwardZ, 0.15);
+    // 坐姿时身体沿局部 +Z 偏移到椅面；走路时必须归零，否则臀部朝前像倒着走
+    if (isWalking) {
+      character.position.z = 0;
+    } else {
+      character.position.z = lerp(
+        character.position.z,
+        isSeated ? 0.85 + charForwardZ : 0,
+        0.2
+      );
+    }
     torso.rotation.x = lerp(torso.rotation.x, torsoLean);
     torso.scale.y = lerp(torso.scale.y, torsoScaleY);
     head.rotation.z = lerp(head.rotation.z, headTiltZ);
@@ -235,10 +274,10 @@ export default function Employee({ config }: EmployeeProps) {
   const charYOffset = 0;
 
   return (
-    <group ref={rootRef} position={[worldX, 0, worldZ]} rotation={[0, worldRot, 0]}>
+    <group ref={rootRef} position={[worldX, 0, worldZ]}>
       <group
         ref={characterRef}
-        position={[0, charYOffset, 0.85]}
+        position={[0, charYOffset, 0]}
         onClick={handleClick}
         onPointerOver={() => (document.body.style.cursor = "pointer")}
         onPointerOut={() => (document.body.style.cursor = "auto")}
@@ -277,6 +316,7 @@ export default function Employee({ config }: EmployeeProps) {
               <boxGeometry args={[0.09, 0.09, 0.08]} />
               <meshStandardMaterial color={config.skinColor} flatShading />
             </mesh>
+            {handProps.left && <HandProp id={handProps.left} />}
           </group>
 
           <group ref={rightArmRef} position={[0.26, 0.45, 0]}>
@@ -288,18 +328,7 @@ export default function Employee({ config }: EmployeeProps) {
               <boxGeometry args={[0.09, 0.09, 0.08]} />
               <meshStandardMaterial color={config.skinColor} flatShading />
             </mesh>
-            {status === "idle" && idleActivity === "coffee" && (
-              <mesh position={[0, 0.04, -0.46]}>
-                <cylinderGeometry args={[0.04, 0.035, 0.09, 8]} />
-                <meshStandardMaterial color="#e8e6e3" flatShading />
-              </mesh>
-            )}
-            {status === "idle" && idleActivity === "phone" && (
-              <mesh position={[0, -0.02, -0.44]} rotation={[0.3, 0, 0]}>
-                <boxGeometry args={[0.06, 0.1, 0.02]} />
-                <meshStandardMaterial color="#1e2438" flatShading />
-              </mesh>
-            )}
+            {handProps.right && <HandProp id={handProps.right} />}
           </group>
         </group>
 
@@ -346,7 +375,7 @@ export default function Employee({ config }: EmployeeProps) {
           workingLabel={config.workingLabel}
           overrideText={overrideText}
           accentColor={department.color}
-          hideLabels={settingsOpen}
+          hideLabels={hideSceneLabels}
         />
       </group>
     </group>

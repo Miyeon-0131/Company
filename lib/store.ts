@@ -5,7 +5,7 @@ import {
   MEETING_ANCHORS,
   REST_ANCHORS,
 } from "./officeAnchors";
-import { pairEmployeesToAnchors } from "./anchorAssignment";
+import { pairEmployeesToAnchorsShuffled } from "./anchorAssignment";
 import {
   buildBreakPath,
   buildDeskPathFrom,
@@ -72,6 +72,10 @@ interface OfficeState {
   screens: Record<string, ScreenEntry[]>;
   activeScreen: string | null;
   settingsOpen: boolean;
+  /** 专注/休息模式设置面板是否展开 */
+  focusPanelOpen: boolean;
+  /** 专注/休息模式镜头是否环绕锁定（点击可解锁） */
+  modeCameraLocked: boolean;
   artifactCache: Record<string, Artifact>;
   idleChatter: IdleChatterTurn | null;
   /** 工位摸鱼时的动作（喝咖啡、伸懒腰等） */
@@ -105,8 +109,11 @@ interface OfficeState {
   setActiveScreen: (employeeId: string | null) => void;
   setShowResult: (show: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  setFocusPanelOpen: (open: boolean) => void;
+  setModeCameraLocked: (locked: boolean) => void;
   setIdleChatter: (payload: IdleChatterTurn | null) => void;
   setIdleActivity: (employeeId: string, activity: IdleActivity) => void;
+  setRestActivity: (employeeId: string, activity: RestActivity) => void;
   cacheArtifacts: (artifacts: Artifact[] | undefined) => void;
   resetAll: () => void;
 }
@@ -140,6 +147,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
   screens: {},
   activeScreen: null,
   settingsOpen: false,
+  focusPanelOpen: false,
+  modeCameraLocked: true,
   artifactCache: {},
   idleChatter: null,
   idleActivities: Object.fromEntries(
@@ -267,11 +276,11 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       const ratio = Math.min(1, step / dist);
       const nextX = pose.x + dx * ratio;
       const nextZ = pose.z + dz * ratio;
-      const face = walkFacing(nextX - pose.x || dx, nextZ - pose.z || dz);
+      const face = dist > 0.001 ? walkFacing(dx, dz) : pose.rotation;
       nextPoses[emp.id] = {
         x: nextX,
         z: nextZ,
-        rotation: lerpAngle(pose.rotation, face, 0.22),
+        rotation: lerpAngle(pose.rotation, face, 0.82),
       };
       if (nextStatuses[emp.id] !== "walking") {
         nextStatuses[emp.id] = "walking";
@@ -298,7 +307,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     s.setIdleChatter(null);
     const targets = { ...s.movementTargets };
     const queues = { ...s.movementQueues };
-    const anchors = pairEmployeesToAnchors(MEETING_ANCHORS);
+    const seed = Date.now();
+    const anchors = pairEmployeesToAnchorsShuffled(MEETING_ANCHORS, EMPLOYEES, seed);
     EMPLOYEES.forEach((emp, i) => {
       const anchor = anchors[i]!;
       assignMovementChain(
@@ -323,7 +333,8 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
     s.setIdleChatter(null);
     const targets = { ...s.movementTargets };
     const queues = { ...s.movementQueues };
-    const anchors = pairEmployeesToAnchors(REST_ANCHORS);
+    const seed = Date.now();
+    const anchors = pairEmployeesToAnchorsShuffled(REST_ANCHORS, EMPLOYEES, seed);
     EMPLOYEES.forEach((emp, i) => {
       const anchor = anchors[i]!;
       assignMovementChain(targets, queues, emp.id, buildBreakPath(emp, i, anchor));
@@ -357,6 +368,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       restActivities: Object.fromEntries(EMPLOYEES.map((e) => [e.id, null])),
       officeMode: "normal",
       modeRemainingSec: 0,
+      modeCameraLocked: true,
     });
     EMPLOYEES.forEach((e) => {
       if (s.statuses[e.id] !== "working" && s.statuses[e.id] !== "thinking") {
@@ -372,6 +384,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       officeMode: "focus",
       focusDurationSec: focusSec,
       modeRemainingSec: focusSec,
+      modeCameraLocked: true,
     });
     get().dispatchAllToMeeting();
   },
@@ -382,6 +395,7 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
       officeMode: "break",
       breakDurationSec: breakSec,
       modeRemainingSec: breakSec,
+      modeCameraLocked: true,
     });
     get().dispatchAllToBreak();
   },
@@ -488,6 +502,10 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
 
+  setFocusPanelOpen: (open) => set({ focusPanelOpen: open }),
+
+  setModeCameraLocked: (locked) => set({ modeCameraLocked: locked }),
+
   setIdleChatter: (payload) =>
     set({
       idleChatter:
@@ -510,6 +528,11 @@ export const useOfficeStore = create<OfficeState>((set, get) => ({
           : state.statusTexts,
       };
     }),
+
+  setRestActivity: (employeeId, activity) =>
+    set((state) => ({
+      restActivities: { ...state.restActivities, [employeeId]: activity },
+    })),
 
   cacheArtifacts: (artifacts) =>
     set((state) => {

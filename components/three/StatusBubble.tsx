@@ -2,6 +2,7 @@
 
 import { Html } from "@react-three/drei";
 import { AgentStatus } from "@/lib/types";
+import { REST_ACTIVITY_LABELS } from "@/lib/officeAnchors";
 import { useOfficeStore } from "@/lib/store";
 
 interface StatusBubbleProps {
@@ -71,29 +72,35 @@ export default function StatusBubble({
 }: StatusBubbleProps) {
   const style = BUBBLE_STYLE[status];
   const idleChatter = useOfficeStore((s) => s.idleChatter);
+  const restActivity = useOfficeStore((s) => s.restActivities[employeeId]);
+  const canChatter =
+    status === "idle" || status === "focusing" || status === "resting";
   const isLead =
-    status === "idle" &&
-    !overrideText &&
-    idleChatter?.lead?.speakerId === employeeId;
+    canChatter && idleChatter?.lead?.speakerId === employeeId;
   const isReply =
-    status === "idle" &&
-    !overrideText &&
-    idleChatter?.reply?.speakerId === employeeId;
+    canChatter && idleChatter?.reply?.speakerId === employeeId;
   const isSpeaking = isLead || isReply;
 
   if (hideLabels) return null;
 
+  const restLabel =
+    status === "resting" && restActivity
+      ? REST_ACTIVITY_LABELS[restActivity]
+      : null;
+
   const text =
-    overrideText ??
-    (status === "working"
-      ? workingLabel
-      : isLead
-        ? idleChatter!.lead.text
-        : isReply
-          ? idleChatter!.reply!.text
-          : status === "idle"
-          ? null
-          : style.text);
+    isLead
+      ? idleChatter!.lead.text
+      : isReply
+        ? idleChatter!.reply!.text
+        : overrideText ??
+          (status === "working"
+            ? workingLabel
+            : status === "resting"
+              ? restLabel
+              : status === "idle" || status === "focusing"
+                ? null
+                : style.text);
 
   return (
     <Html
@@ -120,7 +127,7 @@ export default function StatusBubble({
               }`}
             >
               <span>{text}</span>
-              {style.showDots && status !== "idle" && (
+              {style.showDots && !isSpeaking && status !== "idle" && status !== "focusing" && status !== "resting" && (
                 <span className="ml-1.5 inline-flex gap-0.5 align-middle">
                   <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
                   <span className="h-1 w-1 animate-bounce rounded-full bg-current [animation-delay:150ms]" />

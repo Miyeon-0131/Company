@@ -51,7 +51,7 @@ export default function IdleActivityController() {
 
         const idx = counters.current[emp.id] ?? 0;
         counters.current[emp.id] = idx + 1;
-        setIdleActivity(emp.id, pickIdleActivity(idx));
+        setIdleActivity(emp.id, pickIdleActivity(idx, emp.id));
       });
     }, IDLE_ACTIVITY_CYCLE_MS);
 

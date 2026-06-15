@@ -278,6 +278,177 @@ export function getQuipChatter(index: number): string {
   return SOLO_QUIPS[index % SOLO_QUIPS.length]!;
 }
 
+/** 从台词池取下一句，尽量避免短期内重复 */
+export function pickNonRepeatingLine(
+  pool: string[],
+  state: { cursor: number; recent: string[] },
+  recentCap = 5
+): string {
+  if (!pool.length) return "";
+  const fresh = pool.filter((line) => !state.recent.includes(line));
+  const choices = fresh.length > 0 ? fresh : pool;
+  const line = choices[state.cursor % choices.length]!;
+  state.cursor = (state.cursor + 1) % Math.max(choices.length, 1);
+  state.recent = [...state.recent, line].slice(-Math.min(recentCap, pool.length - 1));
+  return line;
+}
+
 export const IDLE_CHATTER_SHOW_MS = 10000;
 export const IDLE_CHATTER_REPLY_DELAY_MS = 3000;
 export const IDLE_CHATTER_GAP_MS = 6000;
+
+/** 会议/休息区：更短间隔，对话更连续 */
+export const AREA_CHATTER_SHOW_MS = 7500;
+export const AREA_CHATTER_REPLY_DELAY_MS = 2200;
+export const AREA_CHATTER_GAP_MS = 2800;
+
+export type ChatterScene = "desk" | "meeting" | "break";
+
+/** 会议相关台词 */
+const MEETING_LINES = [
+  "📋 今天议题先过一遍优先级，别散会还定不下来",
+  "🎯 这个需求的核心指标是什么？先对齐再拆任务",
+  "⏱️ 专注 25 分钟，中间不刷手机，有问题记便签",
+  "📊 数据口径要先统一，不然报告会对不上",
+  "🧩 上下游依赖谁阻塞了？我们逐个清掉",
+  "✅ 结论页写三条：现状、风险、下一步",
+  "💡 我这边可以补一版竞品对比，会后再同步",
+  "🔗 交付物格式定一下：Word + Excel + PDF",
+  "📌 谁负责对外沟通？邮件主题格式也统一",
+  "🗣️ 有异议现在提，别等到发版前夜",
+  "📝 会议纪要我来记，谁有补充现在说",
+  "🧭 本周里程碑还剩两个，今天能关一个吗",
+  "🔍 竞品那栏数据谁核实过？来源要标注",
+  "📆 排期里测试窗口留够了吗，别压缩验收",
+  "🧠 创意方案先各写三条，再投票收敛",
+  "🛠️ 技术债这周还一点，不然后面更痛",
+  "📣 对外口径统一一下，别各说各的",
+  "🤝 需要协同的部门我会后拉群",
+  "📎 参考材料我整理到共享盘了",
+  "⏳ 超时议题先搁置，别拖垮主线",
+];
+
+const MEETING_REPLIES = [
+  "同意，先把目标对齐再动手",
+  "对，指标口径不统一后面全得返工",
+  "我记下了，专注时段不处理杂事",
+  "可以，结论三条我负责整理",
+  "我这边依赖已清，能接下一项",
+  "没问题，会后再把附件打包发你",
+  "补充一点：风险项也要写进纪要",
+  "我赞成，先收敛范围再谈细节",
+  "测试那边我刚问过，窗口够",
+  "来源我来核对，今天下班前给",
+  "排期我回去更新一版甘特",
+  "可以，创意三条我下午发",
+];
+
+/** 休息区台词（按活动类型） */
+const BREAK_BY_ACTIVITY: Record<string, string[]> = {
+  sofa: [
+    "🛋️ 沙发这角度正好，歇两分钟回工位更有劲",
+    "😌 今天会议密度挺高，躺一会儿不算摸鱼吧",
+    "📱 刷两条消息就放下，别带进下一波任务",
+  ],
+  coffee: [
+    "☕ 这杯浓度刚好，下午写报告靠它了",
+    "🫖 咖啡机今天挺给面子，没出幺蛾子",
+    "☕ 来杯热的，脑子才能从会议模式切出来",
+  ],
+  vending: [
+    "🥤 纠结喝可乐还是乌龙茶… 选健康的吧",
+    "🧊 冰饮一口下去，专注时段的疲劳能缓一半",
+    "🥤 饮料区今天补货了，运气不错",
+  ],
+  water: [
+    "💧 多喝水是对的，敲键盘容易忘",
+    "🚰 接水顺便活动下颈椎",
+    "💧 休息区最划算的项目：免费白开水",
+  ],
+  microwave: [
+    "🍱 便当热好了，香味把隔壁都招来了",
+    "⏲️ 微波炉还有 30 秒，站这儿发呆也算休息",
+    "🍜 热饭的时候别聊工作，让脑子空一下",
+  ],
+  lounge: [
+    "📖 站这儿吹风，比工位透气",
+    "🌿 休息区灯光舒服，适合放空",
+    "🧘 伸个懒腰，肩颈终于松点了",
+  ],
+};
+
+const BREAK_GENERIC = [
+  "😄 休息五分钟，效率能顶半小时",
+  "🎵 远处好像有人在聊昨晚的球赛",
+  "🌤️ 窗外天色不错，适合摸鱼… 不是，充电",
+  "☕ 谁要一起点外卖？开玩笑的，还得赶交付",
+];
+
+const BREAK_REPLIES = [
+  "哈哈，歇会儿应该的",
+  "是啊，别聊太嗨，一会还得回工位",
+  "同意，充电五分钟继续冲",
+  "行，我这边也快好了",
+  "确实，站着接水比坐着像样",
+  "沙发那位别羡慕，我这也快好了",
+  "等会回工位别迟到啊",
+  "这咖啡味挺香，借我闻闻",
+];
+
+/** 会议/休息区：更常双人对话，输出更密 */
+export function pickAreaChatterMode(
+  turnIdx: number,
+  speakerCount: number,
+  scene: ChatterScene
+): ChatterMode {
+  if (speakerCount < 2) return turnIdx % 3 === 0 ? "quip" : "solo";
+  const roll = (turnIdx * 5 + speakerCount * 2) % 10;
+  if (scene === "meeting") {
+    if (roll < 3) return "solo";
+    if (roll < 6) return "reply";
+    if (roll < 8) return "expand";
+    return "quip";
+  }
+  if (roll < 4) return "solo";
+  if (roll < 7) return "reply";
+  return "expand";
+}
+
+export function getMeetingChatter(index: number): string {
+  return MEETING_LINES[index % MEETING_LINES.length]!;
+}
+
+export function getMeetingReply(index: number): string {
+  return MEETING_REPLIES[index % MEETING_REPLIES.length]!;
+}
+
+export function getMeetingLinePool(): string[] {
+  return MEETING_LINES;
+}
+
+export function getMeetingReplyPool(): string[] {
+  return MEETING_REPLIES;
+}
+
+export function getBreakLinePool(activity: string | null | undefined): string[] {
+  if (activity && BREAK_BY_ACTIVITY[activity]) {
+    return BREAK_BY_ACTIVITY[activity];
+  }
+  return BREAK_GENERIC;
+}
+
+export function getBreakReplyPool(): string[] {
+  return BREAK_REPLIES;
+}
+
+export function getBreakChatter(
+  activity: string | null | undefined,
+  index: number
+): string {
+  const pool = getBreakLinePool(activity);
+  return pool[index % pool.length]!;
+}
+
+export function getBreakReply(index: number): string {
+  return BREAK_REPLIES[index % BREAK_REPLIES.length]!;
+}

@@ -10,9 +10,15 @@ import { useOfficeStore } from "@/lib/store";
 import { OfficeMode } from "@/lib/types";
 
 const DEFAULT_TARGET = new Vector3(0, 0.5, 0);
-const ORBIT_RADIUS = 13;
-const ORBIT_HEIGHT = 11;
 const ORBIT_SPEED = 0.14;
+
+const MODE_ORBIT: Record<
+  Exclude<OfficeMode, "normal">,
+  { radius: number; height: number }
+> = {
+  focus: { radius: 13, height: 11 },
+  break: { radius: 19, height: 13 },
+};
 
 function modeCenter(mode: OfficeMode): Vector3 | null {
   if (mode === "focus") {
@@ -24,10 +30,11 @@ function modeCenter(mode: OfficeMode): Vector3 | null {
   return null;
 }
 
-/** 专注/休息模式：镜头锁定区域中心并环绕；结束后恢复自由视角 */
+/** 专注/休息模式：默认镜头环绕锁定，点击后可自由旋转 */
 export default function ModeCameraController() {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const officeMode = useOfficeStore((s) => s.officeMode);
+  const modeCameraLocked = useOfficeStore((s) => s.modeCameraLocked);
   const { camera } = useThree();
   const angleRef = useRef(0);
   const prevModeRef = useRef<OfficeMode>("normal");
@@ -61,17 +68,29 @@ export default function ModeCameraController() {
       return;
     }
 
+    if (!modeCameraLocked) {
+      controls.enabled = true;
+      controls.enableRotate = true;
+      controls.enableZoom = true;
+      controls.target.lerp(center, 0.08);
+      controls.update();
+      return;
+    }
+
+    if (officeMode === "normal") return;
+
     controls.enabled = false;
     controls.enableRotate = false;
     controls.enableZoom = false;
 
     angleRef.current += ORBIT_SPEED * delta;
     const a = angleRef.current;
+    const orbit = MODE_ORBIT[officeMode];
 
     desiredPos.current.set(
-      center.x + Math.sin(a) * ORBIT_RADIUS,
-      ORBIT_HEIGHT,
-      center.z + Math.cos(a) * ORBIT_RADIUS
+      center.x + Math.sin(a) * orbit.radius,
+      orbit.height,
+      center.z + Math.cos(a) * orbit.radius
     );
     desiredTarget.current.copy(center);
 

@@ -29,6 +29,11 @@ const OfficeScene = dynamic(() => import("@/components/three/OfficeScene"), {
 
 export default function Home() {
   const settingsOpen = useOfficeStore((s) => s.settingsOpen);
+  const officeMode = useOfficeStore((s) => s.officeMode);
+  const modeCameraLocked = useOfficeStore((s) => s.modeCameraLocked);
+  const setModeCameraLocked = useOfficeStore((s) => s.setModeCameraLocked);
+
+  const modeActive = officeMode !== "normal";
 
   return (
     <main className="relative h-screen w-screen overflow-hidden">
@@ -36,6 +41,20 @@ export default function Home() {
       <IdleActivityController />
       <OfficeModeController />
       <OfficeScene />
+
+      {/* 专注/休息：点击画面中央解锁环绕镜头 */}
+      {modeActive && modeCameraLocked && !settingsOpen && (
+        <button
+          type="button"
+          aria-label="点击解锁视角"
+          onClick={() => setModeCameraLocked(false)}
+          className="absolute left-52 right-80 top-28 bottom-40 z-[6] cursor-pointer bg-transparent"
+        >
+          <span className="pointer-events-none absolute left-1/2 top-8 -translate-x-1/2 rounded-full border border-white/15 bg-slate-950/50 px-3 py-1.5 text-[10px] tracking-wide text-slate-300/90 backdrop-blur-sm">
+            点击画面解锁视角
+          </span>
+        </button>
+      )}
 
       {/* ── 顶部：公司标题 ─────────────────────────── */}
       <header className="pointer-events-none absolute left-5 top-5 z-10">
